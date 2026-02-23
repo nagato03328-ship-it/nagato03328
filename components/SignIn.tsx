@@ -1,0 +1,139 @@
+
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { Mail, Lock, ArrowRight, Github, Chrome, AlertCircle } from 'lucide-react';
+
+interface SignInProps {
+  onBack: () => void;
+  onSuccess: (user: { name: string; email: string }) => void;
+  isDark: boolean;
+}
+
+const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    // Simulate successful sign in
+    setTimeout(() => {
+      onSuccess({
+        name: email.split('@')[0] || 'User',
+        email: email,
+      });
+      setLoading(false);
+    }, 1000);
+  };
+
+  return (
+    <div className="flex-grow flex items-center justify-center py-20 px-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-md w-full bg-white dark:bg-[#121B35] rounded-[2.5rem] shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden"
+      >
+        <div className="p-8 md:p-12">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome Back</h2>
+            <p className="text-gray-500 dark:text-gray-400">Sign in to continue to IdeaConnect</p>
+          </div>
+
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-2xl flex items-center text-red-600 dark:text-red-400 text-sm"
+            >
+              <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+              {error}
+            </motion.div>
+          )}
+
+          <form onSubmit={handleSignIn} className="space-y-6">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-[#0A1025] border border-gray-100 dark:border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  placeholder="name@company.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2 ml-1">
+                <label className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Password</label>
+                <button type="button" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Forgot Password?</button>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-[#0A1025] border border-gray-100 dark:border-gray-800 rounded-2xl py-4 pl-12 pr-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center shadow-lg shadow-indigo-500/25 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-10">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-100 dark:border-gray-800"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase tracking-widest font-bold">
+                <span className="bg-white dark:bg-[#121B35] px-4 text-gray-400">Or continue with</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button className="flex items-center justify-center py-3 px-4 border border-gray-100 dark:border-gray-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-[#0A1025] transition-all font-semibold text-gray-700 dark:text-gray-300">
+                <Chrome className="w-5 h-5 mr-2" />
+                Google
+              </button>
+              <button className="flex items-center justify-center py-3 px-4 border border-gray-100 dark:border-gray-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-[#0A1025] transition-all font-semibold text-gray-700 dark:text-gray-300">
+                <Github className="w-5 h-5 mr-2" />
+                GitHub
+              </button>
+            </div>
+          </div>
+
+          <p className="mt-10 text-center text-gray-500 dark:text-gray-400 text-sm">
+            Don't have an account? 
+            <button onClick={onBack} className="ml-1 font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Create one</button>
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+export default SignIn;
