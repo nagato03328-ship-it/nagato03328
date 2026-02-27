@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { Lightbulb } from 'lucide-react';
 import Button from './Button';
 
 interface NavbarProps {
@@ -9,24 +10,30 @@ interface NavbarProps {
   onGuest: () => void;
   onAdmin: () => void;
   onForInvestors: () => void;
+  onBrowse: () => void;
   onSignIn: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ isDark, toggleTheme, onPostIdea, onGuest, onAdmin, onForInvestors, onSignIn }) => {
+const Navbar: React.FC<NavbarProps> = ({ isDark, toggleTheme, onPostIdea, onGuest, onAdmin, onForInvestors, onBrowse, onSignIn }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 dark:bg-[#080D1D]/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 p-4 transition-colors duration-300">
       <div className="container mx-auto flex justify-between items-center">
         <a href="#" onClick={(e) => { e.preventDefault(); window.location.reload(); }} className="flex items-center text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-          <svg className="w-8 h-8 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-          </svg>
+          <Lightbulb className="w-8 h-8 mr-2 text-indigo-600 dark:text-indigo-400" />
           IdeaConnect
         </a>
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center space-x-6">
+          <a 
+            href="#browse" 
+            onClick={(e) => { e.preventDefault(); onBrowse(); }}
+            className="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200"
+          >
+            Browse Ideas
+          </a>
           <a href="#how-it-works" className="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200">How It Works</a>
           <a 
             href="#investors" 
@@ -93,6 +100,13 @@ const Navbar: React.FC<NavbarProps> = ({ isDark, toggleTheme, onPostIdea, onGues
       {/* Mobile Menu Overlay */}
       {isOpen && (
         <div className="md:hidden bg-white dark:bg-[#080D1D] mt-4 p-4 space-y-4 border-t border-gray-100 dark:border-gray-700">
+          <a 
+            href="#browse" 
+            className="block text-gray-600 dark:text-gray-300" 
+            onClick={(e) => { e.preventDefault(); setIsOpen(false); onBrowse(); }}
+          >
+            Browse Ideas
+          </a>
           <a href="#how-it-works" className="block text-gray-600 dark:text-gray-300" onClick={() => setIsOpen(false)}>How It Works</a>
           <a 
             href="#investors" 

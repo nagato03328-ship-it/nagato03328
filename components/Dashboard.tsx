@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 import BrowseIdeas from './BrowseIdeas';
 import NewIdeaModal from './NewIdeaModal';
 import EditIdeaModal from './EditIdeaModal';
@@ -10,6 +11,7 @@ import SettingsPage from './SettingsPage';
 import StatisticsModal from './StatisticsModal';
 
 interface DashboardProps {
+  userId: string;
   userName: string;
   isDark: boolean;
   toggleTheme: () => void;
@@ -20,55 +22,56 @@ const USER_MOCK_IDEAS = [
   {
     id: 101,
     title: "Quantum Fitness Tracker",
-    description: "A wearable device using quantum sensors to track micro-muscle movements for perfect gym form and injury prevention.",
+    description: "A wearable device using quantum sensors to track micro-muscle movements for perfect gym form and injury prevention. Athletes struggle to maintain perfect form during high-intensity training, leading to preventable injuries.",
     votes: 45,
     waitlist: 12,
     score: 62,
     stage: "Validation",
     comments: 8,
     category: "Hardware",
-    problem: "Athletes struggle to maintain perfect form during high-intensity training, leading to preventable injuries.",
-    solution: "Sub-millimeter muscle tracking using next-gen quantum sensors coupled with real-time haptic feedback.",
-    audience: "Professional athletes and high-end gym enthusiasts."
+    tags: "Hardware, AI, Fitness"
   },
   {
     id: 102,
     title: "Solar-Powered Water Purifier",
-    description: "Compact, portable water purification system designed for hikers and disaster relief zones, powered entirely by ambient sunlight.",
+    description: "Compact, portable water purification system designed for hikers and disaster relief zones, powered entirely by ambient sunlight. A lightweight folding solar panel array that powers a high-efficiency UV and carbon filtration pump.",
     votes: 128,
     waitlist: 54,
     score: 85,
     stage: "Prototype",
     comments: 24,
     category: "Sustainability",
-    problem: "Lack of access to clean water in remote areas or during natural disasters.",
-    solution: "A lightweight folding solar panel array that powers a high-efficiency UV and carbon filtration pump.",
-    audience: "Hikers, aid organizations, and emergency responders."
+    tags: "Sustainability, CleanTech, Outdoor"
   },
   {
     id: 103,
     title: "No-Code AR Menu for Restaurants",
-    description: "A SaaS platform allowing local restaurants to create 3D interactive menus that customers view via a simple web link.",
+    description: "A SaaS platform allowing local restaurants to create 3D interactive menus that customers view via a simple web link. Easy drag-and-drop AR dish builder that customers can access on their phones without downloading an app.",
     votes: 310,
     waitlist: 88,
     score: 91,
     stage: "Validation",
     comments: 42,
     category: "SaaS",
-    problem: "Standard physical and QR menus are boring and don't effectively showcase high-margin dishes.",
-    solution: "Easy drag-and-drop AR dish builder that customers can access on their phones without downloading an app.",
-    audience: "Boutique and upscale restaurant owners."
+    tags: "SaaS, AR, FoodTech"
   }
 ];
 
-const Dashboard: React.FC<DashboardProps> = ({ userName: initialUserName, isDark, toggleTheme, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName, isDark, toggleTheme, onLogout }) => {
   const [userName, setUserName] = useState(initialUserName);
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [isNewIdeaModalOpen, setIsNewIdeaModalOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<any>(null);
   const [viewingIdea, setViewingIdea] = useState<any>(null);
   const [viewingStats, setViewingStats] = useState<any>(null);
-  const [userIdeas, setUserIdeas] = useState(USER_MOCK_IDEAS);
+  const [selectedInvestor, setSelectedInvestor] = useState<any>(null);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [viewingUserName, setViewingUserName] = useState<string | null>(null);
+  const [previousTab, setPreviousTab] = useState('Browse Ideas');
+  const [userIdeas, setUserIdeas] = useState<any[]>([]);
+  const [totalVotes, setTotalVotes] = useState(0);
+  const [totalComments, setTotalComments] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState('All Categories');
   const [activeSort, setActiveSort] = useState('Recent');
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
@@ -80,36 +83,216 @@ const Dashboard: React.FC<DashboardProps> = ({ userName: initialUserName, isDark
   const filteredUserIdeas = userIdeas.filter(idea => {
     return activeCategory === 'All Categories' || idea.category === activeCategory;
   }).sort((a, b) => {
-    if (activeSort === 'Popularity') return b.votes - a.votes;
-    if (activeSort === 'Recent') return b.id - a.id; // Using ID as proxy for recent since it's Date.now()
-    if (activeSort === 'Oldest') return a.id - b.id;
-    if (activeSort === 'Validation Score') return b.score - a.score;
+    if (activeSort === 'Popularity') return (b.votes || 0) - (a.votes || 0);
+    if (activeSort === 'Recent') {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : (typeof a.id === 'number' ? a.id : 0);
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : (typeof b.id === 'number' ? b.id : 0);
+      return dateB - dateA;
+    }
+    if (activeSort === 'Oldest') {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : (typeof a.id === 'number' ? a.id : 0);
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : (typeof b.id === 'number' ? b.id : 0);
+      return dateA - dateB;
+    }
+    if (activeSort === 'Validation Score') return (b.score || 0) - (a.score || 0);
     return 0;
   });
 
   const navLinks = ['Browse Ideas', 'Investors', 'Dashboard'];
 
-  // Calculate totals
-  const totalVotes = userIdeas.reduce((sum, idea) => sum + idea.votes, 0);
-  const totalComments = userIdeas.reduce((sum, idea) => sum + idea.comments, 0);
+  useEffect(() => {
+    const fetchUserIdeas = async () => {
+      if (!userId || userId === 'guest' || userId === 'admin') {
+        setUserIdeas(USER_MOCK_IDEAS);
+        const mockTotalVotes = USER_MOCK_IDEAS.reduce((sum, idea) => sum + (idea.votes || 0), 0);
+        const mockTotalComments = USER_MOCK_IDEAS.reduce((sum, idea) => sum + (idea.comments || 0), 0);
+        setTotalVotes(mockTotalVotes);
+        setTotalComments(mockTotalComments);
+        return;
+      }
 
-  const handleIdeaSubmit = (idea: any) => {
-    const newIdea = {
-      ...idea,
-      id: Date.now(),
-      votes: 0,
-      waitlist: 0,
-      score: 0,
-      comments: 0,
-      description: idea.problem ? idea.problem.substring(0, 100) + '...' : '' // Basic summary
+      if (!isSupabaseConfigured()) return;
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('ideas')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        
+        const ideaIds = (data || []).map(idea => idea.id);
+        
+        let voteCounts: Record<number, number> = {};
+        ideaIds.forEach(id => voteCounts[id] = 0);
+        
+        if (ideaIds.length > 0) {
+          const { data: votesData } = await supabase
+            .from('idea_votes')
+            .select('idea_id, yes_vote, maybe_vote, no_vote')
+            .in('idea_id', ideaIds);
+            
+          if (votesData) {
+            votesData.forEach(vote => {
+              if (vote.yes_vote || vote.maybe_vote || vote.no_vote) {
+                voteCounts[vote.idea_id] = (voteCounts[vote.idea_id] || 0) + 1;
+              }
+            });
+          }
+        }
+
+        // Map DB fields to UI fields if necessary
+        const mappedIdeas = (data || []).map(idea => ({
+          ...idea,
+          votes: voteCounts[idea.id] !== undefined ? voteCounts[idea.id] : (idea.votes || 0),
+          waitlist: idea.waitlist || 0,
+          score: idea.score || 0,
+          comments: idea.comments || 0
+        }));
+
+        setUserIdeas(mappedIdeas);
+
+        // Fetch actual total votes for all user's ideas
+        if (mappedIdeas.length > 0) {
+          setTotalVotes(Object.values(voteCounts).reduce((a, b) => a + b, 0));
+
+          // Fetch actual total comments for all user's ideas
+          const ideaIds = mappedIdeas.map(i => i.id);
+          const { count: commentsCount, error: commentsError } = await supabase
+            .from('idea_comments')
+            .select('*', { count: 'exact', head: true })
+            .in('idea_id', ideaIds);
+          
+          if (!commentsError) {
+            setTotalComments(commentsCount || 0);
+          }
+        } else {
+          setTotalVotes(0);
+          setTotalComments(0);
+        }
+      } catch (err) {
+        console.error('Error fetching ideas:', err);
+      } finally {
+        setLoading(false);
+      }
     };
-    setUserIdeas([newIdea, ...userIdeas]);
-    setIsNewIdeaModalOpen(false);
+
+    fetchUserIdeas();
+  }, [userId]);
+
+  const handleIdeaSubmit = async (idea: any) => {
+    if (!userId || userId === 'guest' || userId === 'admin') {
+      const newIdea = {
+        ...idea,
+        id: Date.now(),
+        votes: 0,
+        waitlist: 0,
+        score: 0,
+        comments: 0
+      };
+      setUserIdeas([newIdea, ...userIdeas]);
+      setIsNewIdeaModalOpen(false);
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      alert('Supabase is not configured.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const ideaData = {
+        user_id: userId,
+        title: idea.title,
+        description: idea.description,
+        category: idea.category,
+        stage: idea.stage,
+        tags: idea.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t !== ''),
+        seeking_investment: idea.seeking_investment,
+        investment_amount: idea.investment_amount
+      };
+
+      const { data, error } = await supabase
+        .from('ideas')
+        .insert([ideaData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newIdea = {
+        ...data,
+        votes: 0,
+        waitlist: 0,
+        score: 0,
+        comments: 0
+      };
+
+      setUserIdeas([newIdea, ...userIdeas]);
+      setIsNewIdeaModalOpen(false);
+    } catch (err: any) {
+      console.error('Error saving idea:', err);
+      alert('Failed to save idea: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateIdea = (updatedIdea: any) => {
-    setUserIdeas(userIdeas.map(idea => idea.id === updatedIdea.id ? updatedIdea : idea));
-    setEditingIdea(null);
+  const handleUpdateIdea = async (updatedIdea: any) => {
+    if (!userId || userId === 'guest' || userId === 'admin') {
+      setUserIdeas(userIdeas.map(idea => idea.id === updatedIdea.id ? updatedIdea : idea));
+      setEditingIdea(null);
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      alert('Supabase is not configured.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const ideaData = {
+        title: updatedIdea.title,
+        description: updatedIdea.description,
+        category: updatedIdea.category,
+        stage: updatedIdea.stage,
+        tags: typeof updatedIdea.tags === 'string' ? updatedIdea.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t !== '') : updatedIdea.tags,
+        seeking_investment: updatedIdea.seeking_investment,
+        investment_amount: updatedIdea.investment_amount,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('ideas')
+        .update(ideaData)
+        .eq('id', updatedIdea.id);
+
+      if (error) throw error;
+
+      setUserIdeas(userIdeas.map(idea => idea.id === updatedIdea.id ? updatedIdea : idea));
+      setEditingIdea(null);
+    } catch (err: any) {
+      console.error('Error updating idea:', err);
+      alert('Failed to update idea: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewProfile = (uid: string, name?: string) => {
+    if (uid === userId) {
+      setActiveTab('Profile');
+    } else {
+      setViewingUserId(uid);
+      setViewingUserName(name || null);
+      setPreviousTab(activeTab);
+      setActiveTab('UserProfile');
+    }
+    setViewingIdea(null);
   };
 
   return (
@@ -333,11 +516,30 @@ const Dashboard: React.FC<DashboardProps> = ({ userName: initialUserName, isDark
 
                 {filteredUserIdeas.length === 0 ? (
                     <div className="text-center py-20 bg-[#1e293b]/10 rounded-3xl border-2 border-dashed border-gray-800">
-                        <p className="text-gray-500 italic">No projects found in this category.</p>
-                        {activeCategory !== 'All Categories' && (
+                        <div className="w-16 h-16 bg-gray-800/50 rounded-2xl flex items-center justify-center text-gray-500 mx-auto mb-4">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">
+                          {userIdeas.length === 0 ? "You haven't shared any ideas yet" : "No matching ideas found"}
+                        </h3>
+                        <p className="text-gray-500 italic mb-6">
+                          {userIdeas.length === 0 
+                            ? "Start your journey by publishing your first vision to the community." 
+                            : "Try adjusting your filters to find what you're looking for."}
+                        </p>
+                        {userIdeas.length === 0 ? (
+                          <button 
+                            onClick={() => setIsNewIdeaModalOpen(true)}
+                            className="bg-[#00BA9D] hover:bg-[#00a88d] text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-teal-500/20 transition-all"
+                          >
+                            Post Your First Idea
+                          </button>
+                        ) : activeCategory !== 'All Categories' && (
                           <button 
                             onClick={() => setActiveCategory('All Categories')}
-                            className="mt-4 text-[#00BA9D] text-sm font-bold hover:underline"
+                            className="text-[#00BA9D] text-sm font-bold hover:underline"
                           >
                             Show all projects
                           </button>
@@ -349,8 +551,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userName: initialUserName, isDark
                             <div key={idea.id} className="bg-[#1e293b]/20 border border-gray-800 p-6 rounded-2xl hover:bg-[#1e293b]/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6 group">
                                 <div className="flex-1">
                                     <div className="flex items-center space-x-3 mb-2">
-                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${idea.stage === 'Validation' ? 'bg-teal-500/10 text-teal-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
-                                            {idea.stage}
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${['mvp', 'launched'].includes(idea.stage) ? 'bg-teal-500/10 text-teal-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                                            {idea.stage.charAt(0).toUpperCase() + idea.stage.slice(1)}
                                         </span>
                                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-800 text-gray-400">
                                             {idea.category || 'General'}
@@ -421,15 +623,53 @@ const Dashboard: React.FC<DashboardProps> = ({ userName: initialUserName, isDark
         )}
 
         {activeTab === 'Browse Ideas' && (
-          <BrowseIdeas />
+          <BrowseIdeas 
+            user={{ id: userId, name: userName }} 
+            onViewProfile={handleViewProfile}
+          />
         )}
 
         {activeTab === 'Investors' && (
-          <InvestorsList />
+          <InvestorsList onViewProfile={(investor) => {
+            setSelectedInvestor(investor);
+            setActiveTab('InvestorProfile');
+          }} />
+        )}
+
+        {activeTab === 'InvestorProfile' && selectedInvestor && (
+          <ProfilePage 
+            initialUser={{ 
+              name: selectedInvestor.name,
+              role: selectedInvestor.type,
+              location: selectedInvestor.location,
+              bio: selectedInvestor.bio,
+              avatar: selectedInvestor.avatar,
+              investor_type: selectedInvestor.type,
+              investment_range: `${selectedInvestor.minCheck} - ${selectedInvestor.maxCheck}`,
+              sectors: selectedInvestor.focus,
+              portfolio_count: selectedInvestor.portfolio,
+              profile_type: selectedInvestor.profile_type
+            }} 
+            isReadOnly={true}
+            onBack={() => setActiveTab('Investors')}
+          />
+        )}
+
+        {activeTab === 'UserProfile' && viewingUserId && (
+          <ProfilePage 
+            userId={viewingUserId}
+            initialUser={{ name: viewingUserName || 'Loading...' }}
+            isReadOnly={viewingUserId !== userId}
+            onBack={() => setActiveTab(previousTab)}
+          />
         )}
 
         {activeTab === 'Profile' && (
-          <ProfilePage initialUser={{ name: userName }} onUpdate={(newName) => setUserName(newName)} />
+          <ProfilePage 
+            userId={userId}
+            initialUser={{ name: userName }} 
+            onUpdate={(newName) => setUserName(newName)} 
+          />
         )}
 
         {activeTab === 'Settings' && (
@@ -457,6 +697,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userName: initialUserName, isDark
         isOpen={!!viewingIdea} 
         idea={viewingIdea} 
         onClose={() => setViewingIdea(null)} 
+        onViewProfile={handleViewProfile}
+        user={{ id: userId, name: userName }}
       />
 
       {/* Statistics Modal */}

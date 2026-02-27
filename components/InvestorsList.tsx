@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const MOCK_INVESTORS = [
   {
@@ -52,15 +53,64 @@ const MOCK_INVESTORS = [
   }
 ];
 
-const InvestorsList: React.FC = () => {
+interface InvestorsListProps {
+  onViewProfile?: (investor: any) => void;
+}
+
+const InvestorsList: React.FC<InvestorsListProps> = ({ onViewProfile }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [investors, setInvestors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const filteredInvestors = MOCK_INVESTORS.filter(investor => {
+  useEffect(() => {
+    const fetchInvestors = async () => {
+      if (!isSupabaseConfigured()) {
+        setInvestors(MOCK_INVESTORS);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('interests', '%yes%');
+
+        if (error) throw error;
+
+        const mappedInvestors = (data || []).map(profile => ({
+          id: profile.user_id,
+          name: profile.full_name || profile.company_name || 'Anonymous Investor',
+          username: profile.email ? profile.email.split('@')[0] : 'user',
+          profile_type: profile.profile_type,
+          type: (profile.investor_type || (profile.profile_type === 'company' ? 'Venture Capital' : 'Angel Investor')).replace(/_/g, ' '),
+          focus: profile.sectors || [],
+          location: profile.industry || 'Remote',
+          portfolio: profile.portfolio_count || 0,
+          bio: profile.bio || 'No bio provided.',
+          avatar: (profile.full_name || profile.company_name || 'IN').substring(0, 2).toUpperCase(),
+          minCheck: profile.investment_range ? profile.investment_range.split('-')[0] : '$10k',
+          maxCheck: profile.investment_range ? profile.investment_range.split('-')[1] : '$100k'
+        }));
+
+        setInvestors(mappedInvestors);
+      } catch (err) {
+        console.error('Error fetching investors:', err);
+        setInvestors(MOCK_INVESTORS);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInvestors();
+  }, []);
+
+  const filteredInvestors = investors.filter(investor => {
     const matchesSearch = 
       investor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       investor.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      investor.focus.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      investor.focus.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     
     return matchesSearch;
   });
@@ -120,6 +170,7 @@ const InvestorsList: React.FC = () => {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h3 className="text-xl font-bold text-white group-hover:text-[#00BA9D] transition-colors">{investor.name}</h3>
+                      <p className="text-gray-500 text-sm mb-1">@{investor.username}</p>
                       <p className="text-[#00BA9D] text-xs font-bold uppercase tracking-widest">{investor.type}</p>
                     </div>
                     <div className="flex items-center text-gray-500 text-xs">
@@ -153,7 +204,10 @@ const InvestorsList: React.FC = () => {
                       <p className="text-white font-bold">{investor.minCheck}</p>
                     </div>
                     <div className="text-right">
-                      <button className="text-[#00BA9D] hover:text-white text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-end ml-auto group/btn">
+                      <button 
+                        onClick={() => onViewProfile && onViewProfile(investor)}
+                        className="text-[#00BA9D] hover:text-white text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-end ml-auto group/btn"
+                      >
                         View Profile
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 transform group-hover/btn:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />

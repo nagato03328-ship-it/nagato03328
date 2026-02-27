@@ -12,11 +12,11 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
   const [formData, setFormData] = useState({
     title: '',
     category: 'SaaS',
-    stage: 'Concept',
+    stage: 'idea',
     description: '',
-    problem: '',
-    solution: '',
-    audience: ''
+    tags: '',
+    seeking_investment: false,
+    investment_amount: ''
   });
 
   useEffect(() => {
@@ -24,11 +24,11 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
       setFormData({
         title: idea.title || '',
         category: idea.category || 'SaaS',
-        stage: idea.stage || 'Concept',
+        stage: idea.stage || 'idea',
         description: idea.description || '',
-        problem: idea.problem || '',
-        solution: idea.solution || '',
-        audience: idea.audience || ''
+        tags: Array.isArray(idea.tags) ? idea.tags.join(', ') : (idea.tags || ''),
+        seeking_investment: idea.seeking_investment || false,
+        investment_amount: idea.investment_amount || ''
       });
     }
   }, [idea]);
@@ -98,61 +98,71 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
             <div>
               <label className={labelStyles}>Validation Stage</label>
               <div className="flex bg-[#0f172a] p-1 rounded-xl">
-                {['Concept', 'Prototype', 'Validation'].map((s) => (
+                {[
+                  { id: 'idea', label: 'Idea' },
+                  { id: 'prototype', label: 'Prototype' },
+                  { id: 'mvp', label: 'MVP' },
+                  { id: 'launched', label: 'Launched' }
+                ].map((s) => (
                   <button
-                    key={s}
+                    key={s.id}
                     type="button"
-                    onClick={() => setFormData({...formData, stage: s})}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${formData.stage === s ? 'bg-gray-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                    onClick={() => setFormData({...formData, stage: s.id})}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${formData.stage === s.id ? 'bg-gray-700 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
                   >
-                    {s}
+                    {s.label}
                   </button>
                 ))}
               </div>
             </div>
 
+            <div className="flex items-center space-x-3 p-4 bg-[#0f172a]/30 border border-gray-800 rounded-2xl">
+              <input 
+                type="checkbox" 
+                id="edit_seeking_investment"
+                className="w-5 h-5 rounded border-gray-700 text-[#00BA9D] focus:ring-[#00BA9D] bg-gray-900"
+                checked={formData.seeking_investment}
+                onChange={(e) => setFormData({...formData, seeking_investment: e.target.checked})}
+              />
+              <label htmlFor="edit_seeking_investment" className="text-sm font-medium text-gray-300 cursor-pointer">
+                Seeking Investment
+              </label>
+            </div>
+
+            {formData.seeking_investment && (
+              <div className="animate-fade-in">
+                <label className={labelStyles}>Target Investment Amount</label>
+                <input 
+                  type="text" 
+                  className={inputStyles} 
+                  placeholder="e.g. $50,000"
+                  value={formData.investment_amount}
+                  onChange={(e) => setFormData({...formData, investment_amount: e.target.value})}
+                  required={formData.seeking_investment}
+                />
+              </div>
+            )}
+
             <div>
-              <label className={labelStyles}>Brief Summary</label>
+              <label className={labelStyles}>Description</label>
               <textarea 
-                rows={2}
+                rows={6}
                 className={inputStyles} 
-                placeholder="A short tagline for your idea..."
+                placeholder="Describe your idea..."
                 value={formData.description}
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
                 required
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className={labelStyles}>The Problem</label>
-                <textarea 
-                  rows={4}
-                  className={inputStyles} 
-                  placeholder="What pain point are you solving?"
-                  value={formData.problem}
-                  onChange={(e) => setFormData({...formData, problem: e.target.value})}
-                />
-              </div>
-              <div>
-                <label className={labelStyles}>Your Solution</label>
-                <textarea 
-                  rows={4}
-                  className={inputStyles} 
-                  placeholder="How does your product work?"
-                  value={formData.solution}
-                  onChange={(e) => setFormData({...formData, solution: e.target.value})}
-                />
-              </div>
-            </div>
-
             <div>
-              <label className={labelStyles}>Target Audience</label>
+              <label className={labelStyles}>Tags</label>
               <input 
                 type="text" 
                 className={inputStyles} 
-                value={formData.audience}
-                onChange={(e) => setFormData({...formData, audience: e.target.value})}
+                value={formData.tags}
+                onChange={(e) => setFormData({...formData, tags: e.target.value})}
+                placeholder="e.g. AI, Mobile, B2B"
               />
             </div>
           </form>

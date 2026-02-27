@@ -20,8 +20,12 @@ import Contact from './components/Contact';
 import Careers from './components/Careers';
 import TermsOfService from './components/TermsOfService';
 import ForInvestors from './components/ForInvestors';
+import BrowseIdeas from './components/BrowseIdeas';
 import SignIn from './components/SignIn';
+import { isSupabaseConfigured } from './components/supabaseClient';
+import { AlertTriangle, X } from 'lucide-react';
 
+// Trigger rebuild
 const App: React.FC = () => {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -30,8 +34,29 @@ const App: React.FC = () => {
     return true;
   });
 
-  const [view, setView] = useState<'landing' | 'register' | 'signin' | 'dashboard' | 'privacy' | 'success-stories' | 'contact' | 'careers' | 'terms' | 'for-investors'>('landing');
-  const [user, setUser] = useState<{ name: string; email?: string } | null>(null);
+  const [view, setView] = useState<'landing' | 'register' | 'signin' | 'dashboard' | 'privacy' | 'success-stories' | 'contact' | 'careers' | 'terms' | 'for-investors' | 'browse'>('landing');
+  const [user, setUser] = useState<{ id: string; name: string; email?: string } | null>(null);
+  const [showConfigWarning, setShowConfigWarning] = useState(false);
+  const [dbStatus, setDbStatus] = useState<string | null>(null);
+
+  const testConnection = async () => {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      setDbStatus(data.database);
+      if (data.database === 'connected') {
+        setTimeout(() => setShowConfigWarning(false), 2000);
+      }
+    } catch (err) {
+      setDbStatus('failed_to_reach_server');
+    }
+  };
+
+  React.useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setShowConfigWarning(true);
+    }
+  }, []);
 
   const toggleTheme = () => {
     const newDark = !isDark;
@@ -85,31 +110,36 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const navigateToBrowse = () => {
+    setView('browse');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const navigateToSignIn = () => {
     setView('signin');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleRegister = (name: string) => {
-    setUser({ name });
+  const handleRegister = (id: string, name: string) => {
+    setUser({ id, name });
     setView('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSignInSuccess = (userData: { name: string; email: string }) => {
+  const handleSignInSuccess = (userData: { id: string; name: string; email: string }) => {
     setUser(userData);
     setView('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleGuestAccess = () => {
-    setUser({ name: 'Guest' });
+    setUser({ id: 'guest', name: 'Guest' });
     setView('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAdminAccess = () => {
-    setUser({ name: 'Admin' });
+    setUser({ id: 'admin', name: 'Admin' });
     setView('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -125,6 +155,7 @@ const App: React.FC = () => {
           />
         ) : (
           <Dashboard 
+            userId={user?.id || ''}
             userName={user?.name || 'User'} 
             isDark={isDark} 
             toggleTheme={toggleTheme} 
@@ -227,6 +258,7 @@ const App: React.FC = () => {
           onGuest={handleGuestAccess}
           onAdmin={handleAdminAccess}
           onForInvestors={navigateToForInvestors}
+          onBrowse={navigateToBrowse}
           onSignIn={navigateToSignIn}
         />
         <ForInvestors onBack={navigateToLanding} isDark={isDark} />
@@ -241,7 +273,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (view === 'signin') {
+  if (view === 'browse') {
     return (
       <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#080D1D] text-gray-50' : 'bg-slate-50 text-gray-900'}`}>
         <Navbar 
@@ -251,6 +283,45 @@ const App: React.FC = () => {
           onGuest={handleGuestAccess}
           onAdmin={handleAdminAccess}
           onForInvestors={navigateToForInvestors}
+          onBrowse={navigateToBrowse}
+          onSignIn={navigateToSignIn}
+        />
+        <BrowseIdeas onBack={navigateToLanding} user={user} />
+        <Footer 
+          onPrivacyPolicy={navigateToPrivacy} 
+          onSuccessStories={navigateToSuccessStories} 
+          onContact={navigateToContact}
+          onCareers={navigateToCareers}
+          onTerms={navigateToTerms}
+        />
+      </div>
+    );
+  }
+
+  if (view === 'signin') {
+    return (
+      <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#080D1D] text-gray-50' : 'bg-slate-50 text-gray-900'}`}>
+        {showConfigWarning && (
+          <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between shadow-lg">
+            <div className="flex items-center space-x-3">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm font-medium">
+                <span className="font-bold">Supabase Not Configured:</span> Database features are disabled.
+              </p>
+            </div>
+            <button onClick={() => setShowConfigWarning(false)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <Navbar 
+          isDark={isDark} 
+          toggleTheme={toggleTheme} 
+          onPostIdea={navigateToRegister} 
+          onGuest={handleGuestAccess}
+          onAdmin={handleAdminAccess}
+          onForInvestors={navigateToForInvestors}
+          onBrowse={navigateToBrowse}
           onSignIn={navigateToSignIn}
         />
         <SignIn 
@@ -272,9 +343,23 @@ const App: React.FC = () => {
   if (view === 'register') {
     return (
       <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#080D1D] text-gray-50' : 'bg-slate-50 text-gray-900'}`}>
+        {showConfigWarning && (
+          <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between shadow-lg">
+            <div className="flex items-center space-x-3">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm font-medium">
+                <span className="font-bold">Supabase Not Configured:</span> Database features are disabled.
+              </p>
+            </div>
+            <button onClick={() => setShowConfigWarning(false)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         <Registration 
           onClose={navigateToLanding} 
           onRegister={handleRegister}
+          onSignIn={navigateToSignIn}
           onGuest={handleGuestAccess}
           isDark={isDark} 
         />
@@ -284,6 +369,44 @@ const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#080D1D] text-gray-50' : 'bg-slate-50 text-gray-900'}`}>
+      {showConfigWarning && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500 text-white px-4 py-2 flex items-center justify-between shadow-lg">
+          <div className="flex items-center space-x-3">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+            <div className="text-sm font-medium">
+              <p>
+                <span className="font-bold">Supabase Not Configured:</span> Please set <code className="bg-black/20 px-1 rounded text-xs">VITE_SUPABASE_URL</code> and <code className="bg-black/20 px-1 rounded text-xs">VITE_SUPABASE_ANON_KEY</code>.
+              </p>
+              {dbStatus && (
+                <div className="flex items-center space-x-2 mt-1">
+                  <p className="text-xs opacity-90">
+                    Server Status: <span className="font-mono bg-black/10 px-1 rounded">{dbStatus}</span>
+                  </p>
+                  <a 
+                    href="https://status.supabase.com/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-[10px] underline hover:text-white/80"
+                  >
+                    Check Supabase Status
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={testConnection}
+              className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-bold transition-colors"
+            >
+              Test Connection
+            </button>
+            <button onClick={() => setShowConfigWarning(false)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
       <Navbar 
         isDark={isDark} 
         toggleTheme={toggleTheme} 
@@ -291,6 +414,7 @@ const App: React.FC = () => {
         onGuest={handleGuestAccess}
         onAdmin={handleAdminAccess}
         onForInvestors={navigateToForInvestors}
+        onBrowse={navigateToBrowse}
         onSignIn={navigateToSignIn}
       />
       <main className="flex-grow">
