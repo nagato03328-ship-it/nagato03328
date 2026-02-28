@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { Mail, Lock, ArrowRight, Github, Chrome, AlertCircle } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
@@ -11,6 +12,7 @@ interface SignInProps {
 }
 
 const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,16 +31,33 @@ const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (error) throw error;
 
       if (data.user) {
+        // Fetch profile name from DB to be sure
+        let displayName = data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'User';
+        
+        try {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name, company_name, profile_type')
+            .eq('user_id', data.user.id)
+            .single();
+          
+          if (profileData) {
+            displayName = profileData.profile_type === 'company' ? profileData.company_name : profileData.full_name;
+          }
+        } catch (err) {
+          console.error('Error fetching profile on sign in:', err);
+        }
+
         onSuccess({
           id: data.user.id,
-          name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'User',
+          name: displayName || 'User',
           email: data.user.email || '',
         });
       }
@@ -79,8 +98,8 @@ const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 mb-6">
               <Lock className="w-8 h-8" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">Welcome Back</h2>
-            <p className="text-gray-500 dark:text-gray-400">Sign in to continue to IdeaConnect</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">{t('Welcome Back')}</h2>
+            <p className="text-gray-500 dark:text-gray-400">{t('Sign in to continue to IdeaConnect')}</p>
           </div>
 
           {error && (
@@ -96,7 +115,7 @@ const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
 
           <form onSubmit={handleSignIn} className="space-y-6">
             <div>
-              <label className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Email Address</label>
+              <label className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">{t('Email Address')}</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input 
@@ -112,8 +131,8 @@ const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
 
             <div>
               <div className="flex justify-between items-center mb-2 ml-1">
-                <label className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Password</label>
-                <button type="button" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Forgot Password?</button>
+                <label className="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t('Password')}</label>
+                <button type="button" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{t('Forgot Password?')}</button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -137,7 +156,7 @@ const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  Sign In
+                  {t('Sign In')}
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </>
               )}
@@ -150,7 +169,7 @@ const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
                 <div className="w-full border-t border-gray-100 dark:border-gray-800"></div>
               </div>
               <div className="relative flex justify-center text-xs uppercase tracking-widest font-bold">
-                <span className="bg-white dark:bg-[#121B35] px-4 text-gray-400">Or continue with</span>
+                <span className="bg-white dark:bg-[#121B35] px-4 text-gray-400">{t('Or continue with')}</span>
               </div>
             </div>
 
@@ -167,12 +186,12 @@ const SignIn: React.FC<SignInProps> = ({ onBack, onSuccess, isDark }) => {
           </div>
 
           <p className="mt-10 text-center text-gray-500 dark:text-gray-400 text-sm">
-            Don't have an account? 
+            {t("Don't have an account?")} 
             <button 
               onClick={onBack} 
               className="ml-1 font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
             >
-              Create one
+              {t('Create one')}
             </button>
           </p>
         </div>

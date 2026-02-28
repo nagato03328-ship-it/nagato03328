@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface NewIdeaModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface NewIdeaModalProps {
 }
 
 const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     title: '',
     category: 'SaaS',
@@ -36,8 +38,8 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
         {/* Header */}
         <div className="p-6 border-b border-gray-800 flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold text-white">Share Your Vision</h2>
-            <p className="text-gray-500 text-sm">Fill in the details to start your validation journey.</p>
+            <h2 className="text-2xl font-bold text-white">{t('Share Your Vision')}</h2>
+            <p className="text-gray-500 text-sm">{t('Fill in the details to start your validation journey.')}</p>
           </div>
           <button 
             onClick={onClose}
@@ -54,7 +56,7 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
           <form id="new-idea-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className={labelStyles}>Idea Title</label>
+                <label className={labelStyles}>{t('Idea Title')}</label>
                 <input 
                   type="text" 
                   className={inputStyles} 
@@ -65,7 +67,7 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
                 />
               </div>
               <div>
-                <label className={labelStyles}>Category</label>
+                <label className={labelStyles}>{t('Category')}</label>
                 <select 
                   className={inputStyles}
                   value={formData.category}
@@ -83,13 +85,13 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
             </div>
 
             <div>
-              <label className={labelStyles}>Validation Stage</label>
+              <label className={labelStyles}>{t('Validation Stage')}</label>
               <div className="flex bg-[#0f172a] p-1 rounded-xl">
                 {[
-                  { id: 'idea', label: 'Idea' },
-                  { id: 'prototype', label: 'Prototype' },
-                  { id: 'mvp', label: 'MVP' },
-                  { id: 'launched', label: 'Launched' }
+                  { id: 'idea', label: t('Idea') },
+                  { id: 'prototype', label: t('Prototype') },
+                  { id: 'mvp', label: t('MVP') },
+                  { id: 'launched', label: t('Launched') }
                 ].map((s) => (
                   <button
                     key={s.id}
@@ -112,13 +114,13 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
                 onChange={(e) => setFormData({...formData, seeking_investment: e.target.checked})}
               />
               <label htmlFor="seeking_investment" className="text-sm font-medium text-gray-300 cursor-pointer">
-                Seeking Investment
+                {t('Seeking Investment')}
               </label>
             </div>
 
             {formData.seeking_investment && (
               <div className="animate-fade-in">
-                <label className={labelStyles}>Target Investment Amount</label>
+                <label className={labelStyles}>{t('Target Investment Amount')}</label>
                 <input 
                   type="text" 
                   className={inputStyles} 
@@ -131,7 +133,7 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
             )}
 
             <div>
-              <label className={labelStyles}>Description</label>
+              <label className={labelStyles}>{t('Description')}</label>
               <textarea 
                 rows={6}
                 className={inputStyles} 
@@ -143,7 +145,7 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
             </div>
 
             <div>
-              <label className={labelStyles}>Tags</label>
+              <label className={labelStyles}>{t('Tags')}</label>
               <input 
                 type="text" 
                 className={inputStyles} 
@@ -163,14 +165,14 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSubmit }
             onClick={onClose}
             className="px-6 py-2.5 text-gray-400 font-bold hover:text-white transition-colors"
           >
-            Cancel
+            {t('Cancel')}
           </button>
           <button 
             type="submit" 
             form="new-idea-form"
             className="bg-[#00BA9D] hover:bg-[#00a88d] text-white px-8 py-2.5 rounded-full font-bold shadow-lg shadow-teal-500/20 transform active:scale-95 transition-all"
           >
-            Publish to Community
+            {t('Publish to Community')}
           </button>
         </div>
       </div>

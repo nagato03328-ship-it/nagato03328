@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface ContactModalProps {
 }
 
 const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInfo }) => {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
@@ -22,9 +24,9 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInf
         <div className="p-8">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-1">Contact {contactInfo.name}</h2>
+              <h2 className="text-2xl font-bold text-white mb-1">{t('Contact')} {contactInfo.name}</h2>
               <p className="text-teal-400 text-sm font-medium italic">
-                "u can contact the user and discuss more about it directly by the given contacts below"
+                {t('u can contact the user and discuss more about it directly by the given contacts below')}
               </p>
             </div>
             <button 
@@ -47,7 +49,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInf
                     </svg>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Email Address</p>
+                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">{t('Email Address')}</p>
                     <p className="text-white font-medium">{contactInfo.email}</p>
                   </div>
                 </div>
@@ -71,7 +73,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInf
                     </svg>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Website</p>
+                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">{t('Website')}</p>
                     <p className="text-white font-medium">{contactInfo.website}</p>
                   </div>
                 </div>
@@ -97,8 +99,8 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInf
                     </svg>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">LinkedIn</p>
-                    <p className="text-white font-medium">View Profile</p>
+                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">{t('LinkedIn')}</p>
+                    <p className="text-white font-medium">{t('View Profile')}</p>
                   </div>
                 </div>
                 <a 
@@ -123,7 +125,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInf
                     </svg>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Phone Number</p>
+                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">{t('Phone Number')}</p>
                     <p className="text-white font-medium">{contactInfo.phone}</p>
                   </div>
                 </div>
@@ -140,7 +142,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInf
 
             {!contactInfo.email && !contactInfo.website && !contactInfo.linkedin && !contactInfo.phone && (
               <div className="text-center py-8">
-                <p className="text-gray-500 italic">No contact information provided by this user.</p>
+                <p className="text-gray-500 italic">{t('No contact information provided by this user.')}</p>
               </div>
             )}
           </div>
@@ -149,7 +151,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, contactInf
             onClick={onClose}
             className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white font-bold py-4 rounded-2xl transition-all"
           >
-            Close
+            {t('Close')}
           </button>
         </div>
       </div>

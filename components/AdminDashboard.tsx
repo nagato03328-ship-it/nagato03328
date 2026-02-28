@@ -74,6 +74,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
   const [isViewIdeaModalOpen, setIsViewIdeaModalOpen] = useState(false);
   const [selectedIdea, setSelectedIdea] = useState<any>(null);
 
+  // Delete Confirmation State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [ideaToDelete, setIdeaToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // User Delete Confirmation State
+  const [isUserDeleteModalOpen, setIsUserDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+
   const handleBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastMessage.trim()) return;
@@ -113,7 +123,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
       doc.setFontSize(10);
       doc.text(`Total Users: ${MOCK_USERS.length}`, 14, 52);
       doc.text(`Active Ideas: 452`, 14, 58);
-      doc.text(`Total Investments: $2.4M`, 14, 64);
 
       // Add user table
       const tableColumn = ["ID", "Name", "Email", "Role", "Status", "Joined"];
@@ -144,41 +153,205 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
     }
   };
 
+  const confirmDelete = (idea: any) => {
+    setIdeaToDelete(idea);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!ideaToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/ideas/${ideaToDelete.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        setIdeas(ideas.filter(i => i.id !== ideaToDelete.id));
+        setIsDeleteModalOpen(false);
+        setIdeaToDelete(null);
+        
+        // If we were viewing this idea, close the view modal too
+        if (selectedIdea && selectedIdea.id === ideaToDelete.id) {
+          setIsViewIdeaModalOpen(false);
+          setSelectedIdea(null);
+        }
+      } else {
+        alert("Failed to delete idea");
+      }
+    } catch (err) {
+      console.error("Error deleting idea:", err);
+      alert("Error deleting idea");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleEditClick = (user: any) => {
     setEditingUser({ ...user });
     setIsEditModalOpen(true);
   };
 
-  const handleUpdateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUpdating(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsUpdating(false);
-      setUpdateSuccess(true);
-      
-      // In a real app, we would update the MOCK_USERS array here
-      // For this demo, we'll just show the success message
-      
-      setTimeout(() => {
-        setUpdateSuccess(false);
-        setIsEditModalOpen(false);
-        setEditingUser(null);
-      }, 1500);
-    }, 1000);
+  const confirmDeleteUser = (user: any) => {
+    setUserToDelete(user);
+    setIsUserDeleteModalOpen(true);
   };
 
-  const filteredUsers = MOCK_USERS.filter(user => 
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeletingUser(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userToDelete.id}`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        setUsers(users.filter(u => u.id !== userToDelete.id));
+        setIsUserDeleteModalOpen(false);
+        setUserToDelete(null);
+      } else {
+        const data = await res.json();
+        alert(`Failed to delete user: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      alert("Error deleting user");
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setIsUpdating(true);
+    
+    try {
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: editingUser.name,
+          email: editingUser.email,
+          role: editingUser.role
+        })
+      });
+
+      if (res.ok) {
+        setIsUpdating(false);
+        setUpdateSuccess(true);
+        
+        // Update local state
+        setUsers(users.map(u => u.id === editingUser.id ? editingUser : u));
+        
+        setTimeout(() => {
+          setUpdateSuccess(false);
+          setIsEditModalOpen(false);
+          setEditingUser(null);
+        }, 1500);
+      } else {
+        const data = await res.json();
+        alert(`Failed to update user: ${data.error || 'Unknown error'}`);
+        setIsUpdating(false);
+      }
+    } catch (err) {
+      console.error("Error updating user:", err);
+      alert("Error updating user");
+      setIsUpdating(false);
+    }
+  };
+
+  const [users, setUsers] = useState<any[]>(MOCK_USERS);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [ideaCount, setIdeaCount] = useState<number | null>(null);
+  const [ideas, setIdeas] = useState<any[]>([]);
+  const [loadingIdeas, setLoadingIdeas] = useState(false);
+
+  React.useEffect(() => {
+    if (activeTab === 'Users' || activeTab === 'Overview') {
+      fetchUsers();
+    }
+    if (activeTab === 'Overview') {
+      fetchIdeaCount();
+    }
+    if (activeTab === 'Moderation') {
+      fetchIdeas();
+    }
+  }, [activeTab]);
+
+  const fetchIdeas = async () => {
+    setLoadingIdeas(true);
+    try {
+      const res = await fetch('/api/admin/ideas');
+      if (res.ok) {
+        const data = await res.json();
+        const mappedIdeas = data.map((idea: any) => ({
+          id: idea.id,
+          title: idea.title,
+          author: idea.profiles?.full_name || idea.profiles?.company_name || idea.profiles?.email || 'Unknown',
+          category: idea.category,
+          submitted: new Date(idea.created_at).toISOString().split('T')[0],
+          description: idea.description,
+          stage: idea.stage,
+          tags: idea.tags,
+          seeking_investment: idea.seeking_investment,
+          investment_amount: idea.investment_amount,
+          views: idea.views
+        }));
+        setIdeas(mappedIdeas);
+      }
+    } catch (err) {
+      console.error('Failed to fetch ideas:', err);
+    } finally {
+      setLoadingIdeas(false);
+    }
+  };
+
+  const fetchIdeaCount = async () => {
+    try {
+      const res = await fetch('/api/admin/ideas/count');
+      if (res.ok) {
+        const data = await res.json();
+        setIdeaCount(data.count);
+      }
+    } catch (err) {
+      console.error('Failed to fetch idea count:', err);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await fetch('/api/admin/users');
+      if (res.ok) {
+        const data = await res.json();
+        const mappedUsers = data.map((profile: any) => ({
+          id: profile.user_id,
+          name: profile.full_name || profile.company_name || 'Unknown',
+          email: profile.email || 'No email',
+          role: profile.profile_type === 'company' ? 'Investor' : 'Creator',
+          status: 'Active', // Default to active as we don't have status in profiles yet
+          joined: new Date(profile.created_at).toISOString().split('T')[0]
+        }));
+        setUsers(mappedUsers);
+      }
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
   );
 
   const stats = [
-    { label: "Total Users", value: "1,284", change: "+12%", icon: "👥", color: "text-blue-400" },
-    { label: "Active Ideas", value: "452", change: "+5%", icon: "💡", color: "text-yellow-400" },
-    { label: "Total Investments", value: "$2.4M", change: "+18%", icon: "💰", color: "text-green-400" },
-    { label: "Pending Approvals", value: "12", change: "-2", icon: "⏳", color: "text-purple-400" },
+    { label: "Total Users", value: loadingUsers ? "..." : (users.length > 0 ? users.length.toString() : "1,284"), icon: "👥", color: "text-blue-400" },
+    { label: "Active Ideas", value: ideaCount !== null ? ideaCount.toString() : "452", icon: "💡", color: "text-yellow-400" },
   ];
 
   return (
@@ -224,14 +397,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
           <div className="animate-fade-in">
             <h1 className="text-3xl font-bold text-white mb-8">System Overview</h1>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
               {stats.map((stat) => (
                 <div key={stat.label} className="bg-[#1e293b]/20 border border-gray-800 p-6 rounded-2xl">
                   <div className="flex justify-between items-start mb-4">
                     <span className="text-2xl">{stat.icon}</span>
-                    <span className={`text-xs font-bold ${stat.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
-                      {stat.change}
-                    </span>
                   </div>
                   <p className="text-3xl font-bold text-white mb-1">{stat.value}</p>
                   <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{stat.label}</p>
@@ -239,28 +409,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
               ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-[#1e293b]/10 border border-gray-800 rounded-3xl p-8">
-                <h3 className="text-xl font-bold text-white mb-6">Recent Activity</h3>
-                <div className="space-y-6">
-                  {[
-                    { user: "Sarah Smith", action: "invested $50k in", target: "Solar Purifier", time: "2 mins ago" },
-                    { user: "Mike Ross", action: "submitted new idea", target: "DeFi for Kids", time: "15 mins ago" },
-                    { user: "System", action: "flagged potential spam in", target: "Crypto Scam", time: "1 hour ago" },
-                  ].map((activity, i) => (
-                    <div key={i} className="flex items-start space-x-4">
-                      <div className="w-2 h-2 mt-2 rounded-full bg-indigo-500" />
-                      <div>
-                        <p className="text-sm text-gray-300">
-                          <span className="font-bold text-white">{activity.user}</span> {activity.action} <span className="text-indigo-400 font-medium">{activity.target}</span>
-                        </p>
-                        <p className="text-xs text-gray-500">{activity.time}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 gap-8">
               <div className="bg-[#1e293b]/10 border border-gray-800 rounded-3xl p-8">
                 <h3 className="text-xl font-bold text-white mb-6">Quick Actions</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -367,13 +516,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
                           >
                             Edit
                           </button>
-                          <button className="text-red-400 hover:text-red-300 text-xs font-bold mr-4">Ban</button>
                           <button 
-                            onClick={() => {
-                              if(window.confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) {
-                                alert(`${user.name} has been deleted.`);
-                              }
-                            }}
+                            onClick={() => confirmDeleteUser(user)}
                             className="text-red-600 hover:text-red-500 text-xs font-bold"
                           >
                             Delete
@@ -398,7 +542,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
           <div className="animate-fade-in">
             <h1 className="text-3xl font-bold text-white mb-8">Idea Moderation</h1>
             <div className="grid grid-cols-1 gap-4">
-              {MOCK_PENDING_IDEAS.map((idea) => (
+              {loadingIdeas ? (
+                 <div className="text-center py-10 text-gray-500">Loading ideas...</div>
+              ) : ideas.length > 0 ? (
+                ideas.map((idea) => (
                 <div key={idea.id} className="bg-[#1e293b]/20 border border-gray-800 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div>
                     <h3 className="text-xl font-bold text-white mb-1">{idea.title}</h3>
@@ -411,10 +558,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <button className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-lg transition-all">
-                      Approve
-                    </button>
-                    <button className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all">
+                    <button 
+                      onClick={() => confirmDelete(idea)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all"
+                    >
                       Reject
                     </button>
                     <button 
@@ -428,7 +575,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
                     </button>
                   </div>
                 </div>
-              ))}
+              ))
+              ) : (
+                <div className="text-center py-10 text-gray-500">No ideas found.</div>
+              )}
             </div>
           </div>
         )}
@@ -639,49 +789,126 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isDark, toggleTheme, on
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <section>
-                    <h3 className="text-red-400 text-xs font-bold uppercase tracking-widest mb-3">The Problem</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">{selectedIdea.problem}</p>
+                    <h3 className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-3">Stage</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed capitalize">{selectedIdea.stage}</p>
                   </section>
                   <section>
-                    <h3 className="text-green-400 text-xs font-bold uppercase tracking-widest mb-3">The Solution</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">{selectedIdea.solution}</p>
+                    <h3 className="text-yellow-400 text-xs font-bold uppercase tracking-widest mb-3">Investment</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      {selectedIdea.seeking_investment 
+                        ? `Seeking ${selectedIdea.investment_amount || 'Investment'}` 
+                        : 'Not currently seeking investment'}
+                    </p>
                   </section>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <section>
-                    <h3 className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-3">Target Audience</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">{selectedIdea.targetAudience}</p>
-                  </section>
-                  <section>
-                    <h3 className="text-yellow-400 text-xs font-bold uppercase tracking-widest mb-3">Pricing Model</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">{selectedIdea.pricing}</p>
-                  </section>
-                </div>
+                <section>
+                  <h3 className="text-green-400 text-xs font-bold uppercase tracking-widest mb-3">Tags</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedIdea.tags && selectedIdea.tags.length > 0 ? (
+                      selectedIdea.tags.map((tag: string, index: number) => (
+                        <span key={index} className="px-2 py-1 bg-gray-800 text-gray-300 text-xs rounded-md border border-gray-700">
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm">No tags</p>
+                    )}
+                  </div>
+                </section>
 
                 <div className="flex space-x-4 pt-6 border-t border-gray-800">
                   <button
-                    onClick={() => {
-                      alert(`Idea "${selectedIdea.title}" has been approved.`);
-                      setIsViewIdeaModalOpen(false);
-                    }}
-                    className="flex-1 py-4 bg-green-600 hover:bg-green-500 text-white rounded-2xl font-bold transition-all shadow-lg shadow-green-500/20"
-                  >
-                    Approve Idea
-                  </button>
-                  <button
-                    onClick={() => {
-                      const reason = window.prompt("Reason for rejection:");
-                      if (reason !== null) {
-                        alert(`Idea rejected. Reason: ${reason}`);
-                        setIsViewIdeaModalOpen(false);
-                      }
-                    }}
+                    onClick={() => confirmDelete(selectedIdea)}
                     className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold transition-all shadow-lg shadow-red-500/20"
                   >
                     Reject Idea
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && ideaToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => !isDeleting && setIsDeleteModalOpen(false)} />
+          <div className="relative bg-[#0f172a] border border-gray-800 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              
+              <h2 className="text-2xl font-bold text-white mb-2">Delete Idea?</h2>
+              <p className="text-gray-400 mb-8">
+                Are you sure you want to delete <span className="text-white font-bold">"{ideaToDelete.title}"</span>? This action cannot be undone.
+              </p>
+
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl font-bold text-gray-400 hover:bg-white/5 transition-all"
+                  disabled={isDeleting}
+                >
+                  No, Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-red-500/20 flex items-center justify-center"
+                >
+                  {isDeleting ? (
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : "Yes, Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* User Delete Confirmation Modal */}
+      {isUserDeleteModalOpen && userToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => !isDeletingUser && setIsUserDeleteModalOpen(false)} />
+          <div className="relative bg-[#0f172a] border border-gray-800 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden animate-fade-in-up">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              
+              <h2 className="text-2xl font-bold text-white mb-2">Delete User?</h2>
+              <p className="text-gray-400 mb-8">
+                Are you sure you want to delete <span className="text-white font-bold">"{userToDelete.name}"</span>? This will also delete all their ideas and data. This action cannot be undone.
+              </p>
+
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setIsUserDeleteModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl font-bold text-gray-400 hover:bg-white/5 transition-all"
+                  disabled={isDeletingUser}
+                >
+                  No, Cancel
+                </button>
+                <button
+                  onClick={handleDeleteUser}
+                  disabled={isDeletingUser}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-red-500/20 flex items-center justify-center"
+                >
+                  {isDeletingUser ? (
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : "Yes, Delete"}
+                </button>
               </div>
             </div>
           </div>

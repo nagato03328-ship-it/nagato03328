@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 interface RegistrationProps {
@@ -11,6 +12,7 @@ interface RegistrationProps {
 }
 
 const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSignIn, onGuest, isDark }) => {
+  const { t } = useTranslation();
   const [role, setRole] = useState<'creator' | 'investor'>('creator');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,6 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
     investor_type: 'Angel',
     investment_range: '',
     sectors: '',
-    portfolio_count: 0
   });
 
   const handleTabChange = (newRole: 'creator' | 'investor') => {
@@ -46,7 +47,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
 
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
+        email: formData.email.trim(),
         password: formData.password,
         options: {
           data: {
@@ -78,7 +79,6 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
           profileData.investor_type = formData.investor_type;
           profileData.investment_range = formData.investment_range;
           profileData.sectors = formData.sectors.split(',').map(s => s.trim()).filter(s => s !== '');
-          profileData.portfolio_count = parseInt(formData.portfolio_count.toString()) || 0;
         }
 
         const { error: profileError } = await supabase
@@ -130,7 +130,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
         </button>
 
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">Join IdeaConnect</h2>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">{t('Join IdeaConnect')}</h2>
           <p className="text-gray-500 dark:text-gray-400 mb-8">Start your journey today</p>
 
           {error && (
@@ -145,13 +145,13 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
               onClick={() => handleTabChange('creator')}
               className={`flex-1 py-2 text-sm font-semibold rounded-full transition-all duration-300 z-10 ${role === 'creator' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
             >
-              Creator
+              {t('Creator')}
             </button>
             <button 
               onClick={() => handleTabChange('investor')}
               className={`flex-1 py-2 text-sm font-semibold rounded-full transition-all duration-300 z-10 ${role === 'investor' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
             >
-              Investor
+              {t('Investor')}
             </button>
             {/* Sliding Background */}
             <div 
@@ -164,7 +164,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Dynamic Name Field */}
               <div>
-                <label className={labelStyles}>{role === 'creator' ? 'Full Name' : 'Company Name'}</label>
+                <label className={labelStyles}>{role === 'creator' ? t('Full Name') : t('Company Name')}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
                     {role === 'creator' ? (
@@ -190,7 +190,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
 
               {/* Email Field */}
               <div>
-                <label className={labelStyles}>Email Address</label>
+                <label className={labelStyles}>{t('Email Address')}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -210,7 +210,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
 
               {/* Password Field */}
               <div>
-                <label className={labelStyles}>Password</label>
+                <label className={labelStyles}>{t('Password')}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -230,7 +230,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
 
               {/* Website Field */}
               <div>
-                <label className={labelStyles}>Website (Optional)</label>
+                <label className={labelStyles}>{t('Website')} ({t('Optional')})</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -250,7 +250,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
 
             {/* Bio Field */}
             <div>
-              <label className={labelStyles}>Bio / About</label>
+              <label className={labelStyles}>{t('Bio')} / {t('About')}</label>
               <textarea 
                 className={`${inputStyles} h-24 py-3 resize-none`}
                 placeholder="Tell us about yourself or your company..."
@@ -262,7 +262,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
             {/* Role Specific Fields */}
             {role === 'creator' ? (
               <div>
-                <label className={labelStyles}>Interests</label>
+                <label className={labelStyles}>{t('Interests')}</label>
                 <input 
                   type="text" 
                   className={inputStyles} 
@@ -274,7 +274,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className={labelStyles}>Industry</label>
+                  <label className={labelStyles}>{t('Industry')}</label>
                   <input 
                     type="text" 
                     className={inputStyles} 
@@ -284,7 +284,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
                   />
                 </div>
                 <div>
-                  <label className={labelStyles}>Contact Person</label>
+                  <label className={labelStyles}>{t('Contact Person')}</label>
                   <input 
                     type="text" 
                     className={inputStyles} 
@@ -294,7 +294,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
                   />
                 </div>
                 <div>
-                  <label className={labelStyles}>Investor Type</label>
+                  <label className={labelStyles}>{t('Investor Type')}</label>
                   <select 
                     className={inputStyles}
                     value={formData.investor_type}
@@ -307,7 +307,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
                   </select>
                 </div>
                 <div>
-                  <label className={labelStyles}>Investment Range</label>
+                  <label className={labelStyles}>{t('Investment Range')}</label>
                   <input 
                     type="text" 
                     className={inputStyles} 
@@ -317,22 +317,13 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
                   />
                 </div>
                 <div>
-                  <label className={labelStyles}>Sectors of Interest</label>
+                  <label className={labelStyles}>{t('Sectors of Interest')}</label>
                   <input 
                     type="text" 
                     className={inputStyles} 
                     placeholder="e.g. SaaS, Fintech (comma separated)"
                     value={formData.sectors}
                     onChange={(e) => setFormData({...formData, sectors: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className={labelStyles}>Portfolio Count</label>
-                  <input 
-                    type="number" 
-                    className={inputStyles} 
-                    value={formData.portfolio_count}
-                    onChange={(e) => setFormData({...formData, portfolio_count: parseInt(e.target.value) || 0})}
                   />
                 </div>
               </div>
@@ -346,7 +337,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
             >
               {loading ? (
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              ) : 'Create Account'}
+              ) : t('Create Account')}
             </button>
 
             {/* Footer Links */}
@@ -356,7 +347,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
                 onClick={onSignIn}
                 className="block w-full text-[#00BA9D] text-sm font-bold hover:underline"
               >
-                Already have an account? Sign in
+                {t('Already have an account? Sign in')}
               </button>
               {onGuest && (
                 <button 
@@ -364,7 +355,7 @@ const Registration: React.FC<RegistrationProps> = ({ onClose, onRegister, onSign
                   onClick={(e) => { e.preventDefault(); onGuest(); }}
                   className="text-gray-500 text-xs font-bold hover:text-[#00BA9D] transition-colors uppercase tracking-widest"
                 >
-                  Or continue as guest
+                  {t('Or continue as guest')}
                 </button>
               )}
             </div>

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface EditIdeaModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface EditIdeaModalProps {
 }
 
 const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, idea }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     title: '',
     category: 'SaaS',
@@ -51,8 +53,8 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
         {/* Header */}
         <div className="p-6 border-b border-gray-800 flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold text-white">Edit Your Idea</h2>
-            <p className="text-gray-500 text-sm">Refine your project details based on new insights.</p>
+            <h2 className="text-2xl font-bold text-white">{t('Edit Your Idea')}</h2>
+            <p className="text-gray-500 text-sm">{t('Refine your project details based on new insights.')}</p>
           </div>
           <button 
             onClick={onClose}
@@ -69,7 +71,7 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
           <form id="edit-idea-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className={labelStyles}>Idea Title</label>
+                <label className={labelStyles}>{t('Idea Title')}</label>
                 <input 
                   type="text" 
                   className={inputStyles} 
@@ -79,7 +81,7 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
                 />
               </div>
               <div>
-                <label className={labelStyles}>Category</label>
+                <label className={labelStyles}>{t('Category')}</label>
                 <select 
                   className={inputStyles}
                   value={formData.category}
@@ -96,13 +98,13 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
             </div>
 
             <div>
-              <label className={labelStyles}>Validation Stage</label>
+              <label className={labelStyles}>{t('Validation Stage')}</label>
               <div className="flex bg-[#0f172a] p-1 rounded-xl">
                 {[
-                  { id: 'idea', label: 'Idea' },
-                  { id: 'prototype', label: 'Prototype' },
-                  { id: 'mvp', label: 'MVP' },
-                  { id: 'launched', label: 'Launched' }
+                  { id: 'idea', label: t('Idea') },
+                  { id: 'prototype', label: t('Prototype') },
+                  { id: 'mvp', label: t('MVP') },
+                  { id: 'launched', label: t('Launched') }
                 ].map((s) => (
                   <button
                     key={s.id}
@@ -125,13 +127,13 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
                 onChange={(e) => setFormData({...formData, seeking_investment: e.target.checked})}
               />
               <label htmlFor="edit_seeking_investment" className="text-sm font-medium text-gray-300 cursor-pointer">
-                Seeking Investment
+                {t('Seeking Investment')}
               </label>
             </div>
 
             {formData.seeking_investment && (
               <div className="animate-fade-in">
-                <label className={labelStyles}>Target Investment Amount</label>
+                <label className={labelStyles}>{t('Target Investment Amount')}</label>
                 <input 
                   type="text" 
                   className={inputStyles} 
@@ -144,7 +146,7 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
             )}
 
             <div>
-              <label className={labelStyles}>Description</label>
+              <label className={labelStyles}>{t('Description')}</label>
               <textarea 
                 rows={6}
                 className={inputStyles} 
@@ -156,7 +158,7 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
             </div>
 
             <div>
-              <label className={labelStyles}>Tags</label>
+              <label className={labelStyles}>{t('Tags')}</label>
               <input 
                 type="text" 
                 className={inputStyles} 
@@ -175,14 +177,14 @@ const EditIdeaModal: React.FC<EditIdeaModalProps> = ({ isOpen, onClose, onSave, 
             onClick={onClose}
             className="px-6 py-2.5 text-gray-400 font-bold hover:text-white transition-colors"
           >
-            Discard
+            {t('Discard')}
           </button>
           <button 
             type="submit" 
             form="edit-idea-form"
             className="bg-[#00BA9D] hover:bg-[#00a88d] text-white px-8 py-2.5 rounded-full font-bold shadow-lg shadow-teal-500/20 transform active:scale-95 transition-all"
           >
-            Save Changes
+            {t('Save Changes')}
           </button>
         </div>
       </div>

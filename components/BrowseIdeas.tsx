@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import ViewIdeaModal from './ViewIdeaModal';
 
@@ -55,6 +56,7 @@ interface BrowseIdeasProps {
 }
 
 const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }) => {
+  const { t } = useTranslation();
   const [selectedIdea, setSelectedIdea] = useState<any>(null);
   const [ideas, setIdeas] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,15 +67,15 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
   const [isStageOpen, setIsStageOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
 
-  const categories = ['All Categories', 'SaaS', 'Hardware', 'EdTech', 'Fintech', 'HealthTech', 'Web3'];
+  const categories = [t('All Categories'), 'SaaS', 'Hardware', 'EdTech', 'Fintech', 'HealthTech', 'Web3'];
   const stages = [
-    { id: 'All Stages', label: 'All Stages' },
-    { id: 'idea', label: 'Idea' },
-    { id: 'prototype', label: 'Prototype' },
-    { id: 'mvp', label: 'MVP' },
-    { id: 'launched', label: 'Launched' }
+    { id: 'All Stages', label: t('All Stages') },
+    { id: 'idea', label: t('Idea') },
+    { id: 'prototype', label: t('Prototype') },
+    { id: 'mvp', label: t('MVP') },
+    { id: 'launched', label: t('Launched') }
   ];
-  const sortOptions = ['Popularity', 'Recent', 'Oldest', 'Relevance'];
+  const sortOptions = [t('Popularity'), t('Recent'), t('Oldest'), t('Relevance')];
 
   useEffect(() => {
     const fetchIdeas = async () => {
@@ -94,7 +96,13 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
         const ideaIds = (data || []).map(idea => idea.id);
         
         let voteCounts: Record<number, number> = {};
-        ideaIds.forEach(id => voteCounts[id] = 0);
+        let yesCounts: Record<number, number> = {};
+        let noCounts: Record<number, number> = {};
+        ideaIds.forEach(id => {
+          voteCounts[id] = 0;
+          yesCounts[id] = 0;
+          noCounts[id] = 0;
+        });
         
         if (ideaIds.length > 0) {
           const { data: votesData } = await supabase
@@ -107,19 +115,28 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
               if (vote.yes_vote || vote.maybe_vote || vote.no_vote) {
                 voteCounts[vote.idea_id] = (voteCounts[vote.idea_id] || 0) + 1;
               }
+              if (vote.yes_vote) yesCounts[vote.idea_id] = (yesCounts[vote.idea_id] || 0) + 1;
+              if (vote.no_vote) noCounts[vote.idea_id] = (noCounts[vote.idea_id] || 0) + 1;
             });
           }
         }
 
-        const mappedIdeas = (data || []).map(idea => ({
-          ...idea,
-          author: idea.author_name || 'Unknown User',
-          votes: voteCounts[idea.id] !== undefined ? voteCounts[idea.id] : (idea.votes || 0),
-          waitlist: idea.waitlist || 0,
-          score: idea.score || 0,
-          comments: idea.comments || 0,
-          createdAt: idea.created_at
-        }));
+        const mappedIdeas = (data || []).map(idea => {
+          const yes = yesCounts[idea.id] || 0;
+          const no = noCounts[idea.id] || 0;
+          const netVotes = yes - no;
+          const calculatedScore = Math.round(Math.sign(netVotes) * Math.min(100, Math.sqrt(Math.abs(netVotes)) * 10));
+
+          return {
+            ...idea,
+            author: idea.author_name || 'Unknown User',
+            votes: voteCounts[idea.id] !== undefined ? voteCounts[idea.id] : (idea.votes || 0),
+            waitlist: idea.waitlist || 0,
+            score: calculatedScore,
+            comments: idea.comments || 0,
+            createdAt: idea.created_at
+          };
+        });
 
         setIdeas(mappedIdeas);
       } catch (err) {
@@ -162,10 +179,10 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
       <section className="bg-[#020617] pt-20 pb-16 px-6 text-center border-b border-gray-800/50">
         <div className="container mx-auto">
           <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6">
-            Discover ideas the world <br /> wants next
+            {t('Discover ideas the world wants next')}
           </h1>
           <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto">
-            Browse through validated product ideas, see real demand signals, and spot the ones worth building, backing, or buying.
+            {t('Browse through validated product ideas, see real demand signals, and spot the ones worth building, backing, or buying.')}
           </p>
         </div>
       </section>
@@ -183,7 +200,7 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
               }}
               className="bg-[#1e293b]/40 hover:bg-[#1e293b]/60 border border-gray-700 text-gray-300 px-6 py-2.5 rounded-full flex items-center space-x-3 transition-all min-w-[160px] justify-between"
             >
-              <span className="text-sm font-bold">{activeCategory}</span>
+              <span className="text-sm font-bold">{t(activeCategory)}</span>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isCategoryOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
               </svg>
@@ -200,7 +217,7 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
                     }}
                     className={`w-full text-left px-4 py-2 text-sm transition-colors ${activeCategory === cat ? 'text-[#00BA9D] bg-[#00BA9D]/5 font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                   >
-                    {cat}
+                    {t(cat)}
                   </button>
                 ))}
               </div>
@@ -217,7 +234,7 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
               }}
               className="bg-[#1e293b]/40 hover:bg-[#1e293b]/60 border border-gray-700 text-gray-300 px-6 py-2.5 rounded-full flex items-center space-x-3 transition-all min-w-[160px] justify-between"
             >
-              <span className="text-sm font-bold">{activeStage}</span>
+              <span className="text-sm font-bold">{stages.find(s => s.id === activeStage)?.label || activeStage}</span>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isStageOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
               </svg>
@@ -255,7 +272,7 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                 </svg>
-                <span className="text-sm font-bold">Sort: {activeSort}</span>
+                <span className="text-sm font-bold">{t('Sort')}: {t(activeSort)}</span>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -273,7 +290,7 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
                     }}
                     className={`w-full text-left px-4 py-2 text-sm transition-colors ${activeSort === option ? 'text-indigo-400 bg-indigo-400/5 font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                   >
-                    {option}
+                    {t(option)}
                   </button>
                 ))}
               </div>
@@ -293,22 +310,18 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
                     {idea.stage.charAt(0).toUpperCase() + idea.stage.slice(1)}
                   </span>
                   <div className="flex items-center space-x-1">
-                    <span className="text-teal-400 font-bold">{idea.score}</span>
-                    <span className="text-gray-500 text-[10px]">Score</span>
+                    <span className={`font-bold ${idea.score < 0 ? 'text-red-500' : 'text-teal-400'}`}>{idea.score}</span>
+                    <span className="text-gray-500 text-[10px]">{t('Score')}</span>
                   </div>
                 </div>
                 
                 <h3 className="text-xl font-bold text-white mb-3 group-hover:text-[#00BA9D] transition-colors">{idea.title}</h3>
                 <p className="text-gray-400 text-sm mb-6 flex-grow">{idea.description}</p>
                 
-                <div className="grid grid-cols-2 gap-4 border-t border-gray-800 pt-4 mt-auto">
+                <div className="grid grid-cols-1 gap-4 border-t border-gray-800 pt-4 mt-auto">
                   <div>
-                    <p className="text-gray-500 text-[10px] uppercase font-bold mb-1 tracking-tighter">Votes</p>
+                    <p className="text-gray-500 text-[10px] uppercase font-bold mb-1 tracking-tighter">{t('Votes')}</p>
                     <p className="text-white font-semibold">{idea.votes}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-[10px] uppercase font-bold mb-1 tracking-tighter">Waitlist</p>
-                    <p className="text-white font-semibold">{idea.waitlist}</p>
                   </div>
                 </div>
                 
@@ -326,7 +339,7 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
                   <button 
                     onClick={() => setSelectedIdea(idea)}
                     className="bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-[#00BA9D] p-2 rounded-xl transition-all border border-gray-700/50 hover:border-[#00BA9D]/30"
-                    title="View Details"
+                    title={t('View Details')}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -344,8 +357,8 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">No ideas found</h3>
-            <p className="text-gray-500">Try adjusting your filters to discover more projects.</p>
+            <h3 className="text-xl font-bold text-white mb-2">{t('No ideas found')}</h3>
+            <p className="text-gray-500">{t('Try adjusting your filters to discover more projects.')}</p>
             <button 
               onClick={() => {
                 setActiveCategory('All Categories');
@@ -353,7 +366,7 @@ const BrowseIdeas: React.FC<BrowseIdeasProps> = ({ onBack, onViewProfile, user }
               }}
               className="mt-6 text-[#00BA9D] font-bold hover:underline"
             >
-              Reset all filters
+              {t('Reset all filters')}
             </button>
           </div>
         )}

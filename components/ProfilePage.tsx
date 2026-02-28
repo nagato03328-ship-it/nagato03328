@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import ContactModal from './ContactModal';
 
@@ -17,7 +18,6 @@ interface UserProfile {
   investor_type?: string;
   investment_range?: string;
   sectors?: string[];
-  portfolio_count?: number;
   is_investor?: boolean;
   // UI only fields (not in DB schema provided)
   location?: string;
@@ -41,18 +41,19 @@ interface ProfilePageProps {
     investor_type?: string;
     investment_range?: string;
     sectors?: string[];
-    portfolio_count?: number;
     profile_type?: 'personal' | 'company';
   };
-  onUpdate?: (name: string) => void;
+  onUpdate?: (name: string, avatarUrl?: string) => void;
   isReadOnly?: boolean;
   onBack?: () => void;
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate, isReadOnly = false, onBack }) => {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [voteCount, setVoteCount] = useState(0);
+  const [voteBreakdown, setVoteBreakdown] = useState({ yes: 0, maybe: 0, no: 0 });
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -70,7 +71,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
     investor_type: initialUser.investor_type || 'Angel',
     investment_range: initialUser.investment_range || '',
     sectors: initialUser.sectors || [],
-    portfolio_count: initialUser.portfolio_count || 0,
     is_investor: false,
     phone: "",
     linkedin: "linkedin.com/in/ideaconnect",
@@ -109,11 +109,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
             investor_type: data.investor_type || '',
             investment_range: data.investment_range || '',
             sectors: data.sectors || [],
-            portfolio_count: data.portfolio_count || 0,
             is_investor: data.interests === 'Yes',
             // UI only fields (not in DB)
             location: 'San Francisco, CA',
-            role: data.profile_type === 'personal' ? 'Founder & Product Designer' : 'Investor',
+            role: data.current_role || (data.profile_type === 'personal' ? 'Founder & Product Designer' : 'Investor'),
             phone: data.contact_person || '',
             linkedin: 'linkedin.com/in/ideaconnect'
           };
@@ -122,13 +121,25 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
         }
 
         // Fetch vote count
-        const { count, error: voteError } = await supabase
+        const { data: voteData, error: voteError } = await supabase
           .from('idea_votes')
-          .select('*', { count: 'exact', head: true })
+          .select('yes_vote, maybe_vote, no_vote')
           .eq('user_id', userId);
         
-        if (!voteError) {
-          setVoteCount(count || 0);
+        if (!voteError && voteData) {
+          setVoteCount(voteData.length);
+          
+          let yes = 0;
+          let maybe = 0;
+          let no = 0;
+          
+          voteData.forEach(vote => {
+            if (vote.yes_vote) yes++;
+            if (vote.maybe_vote) maybe++;
+            if (vote.no_vote) no++;
+          });
+          
+          setVoteBreakdown({ yes, maybe, no });
         }
       } catch (err) {
         console.error('Unexpected error fetching profile:', err);
@@ -143,7 +154,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
   const handleSave = async () => {
     if (!userId || userId === 'guest' || userId === 'admin') {
       setProfile(tempProfile);
-      if (onUpdate) onUpdate(profile.profile_type === 'personal' ? (tempProfile.full_name || '') : (tempProfile.company_name || ''));
+      if (onUpdate) onUpdate(profile.profile_type === 'personal' ? (tempProfile.full_name || '') : (tempProfile.company_name || ''), tempProfile.avatar_url);
       setIsEditing(false);
       return;
     }
@@ -160,6 +171,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
         bio: tempProfile.bio,
         website: tempProfile.website,
         avatar_url: tempProfile.avatar_url,
+        current_role: tempProfile.role,
         updated_at: new Date().toISOString()
       };
 
@@ -187,7 +199,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
         updateData.contact_person = tempProfile.contact_person;
         updateData.investor_type = tempProfile.investor_type;
         updateData.investment_range = tempProfile.investment_range;
-        updateData.portfolio_count = tempProfile.portfolio_count;
         updateData.sectors = tempProfile.sectors;
       }
 
@@ -199,7 +210,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
       if (error) throw error;
 
       setProfile(tempProfile);
-      if (onUpdate) onUpdate(profile.profile_type === 'personal' ? (tempProfile.full_name || '') : (tempProfile.company_name || ''));
+      if (onUpdate) onUpdate(profile.profile_type === 'personal' ? (tempProfile.full_name || '') : (tempProfile.company_name || ''), tempProfile.avatar_url);
       setIsEditing(false);
     } catch (err: any) {
       console.error('Error updating profile:', err);
@@ -278,7 +289,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              <span>Edit Profile</span>
+              <span>{t('Edit Profile')}</span>
             </button>
           ) : (
             <div className="flex items-center space-x-4">
@@ -286,7 +297,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                 onClick={handleCancel}
                 className="px-6 py-3 rounded-full text-gray-400 hover:text-white font-bold transition-all"
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button 
                 onClick={handleSave}
@@ -294,7 +305,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                 className="bg-[#00BA9D] hover:bg-[#00a88d] text-white px-8 py-3 rounded-full font-bold transition-all transform active:scale-95 shadow-lg shadow-teal-500/20 disabled:opacity-70 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-                <span>{loading ? 'Saving...' : 'Save Changes'}</span>
+                <span>{loading ? t('Saving...') : t('Save Changes')}</span>
               </button>
             </div>
           )
@@ -313,10 +324,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                   onClick={() => !isReadOnly && isEditing && setShowAvatarMenu(!showAvatarMenu)}
                   className={`w-32 h-32 rounded-[2.5rem] bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-700 flex items-center justify-center text-4xl font-bold text-white shadow-2xl mx-auto mb-6 transition-all overflow-hidden relative ${!isReadOnly && isEditing ? 'cursor-pointer hover:scale-105 hover:border-[#00BA9D]/50' : ''}`}
                 >
-                  {tempProfile.avatar_url ? (
+                  {tempProfile.avatar_url && (tempProfile.avatar_url.startsWith('http') || tempProfile.avatar_url.startsWith('data:')) ? (
                     <img src={tempProfile.avatar_url} alt={profile.profile_type === 'personal' ? profile.full_name : profile.company_name} className="w-full h-full object-cover" />
                   ) : (
-                    initialUser.avatar || (profile.profile_type === 'personal' ? tempProfile.full_name?.[0] : tempProfile.company_name?.[0])?.toUpperCase() || '?'
+                    tempProfile.avatar_url || initialUser.avatar || (profile.profile_type === 'personal' ? tempProfile.full_name?.[0] : tempProfile.company_name?.[0])?.toUpperCase() || '?'
                   )}
                   
                   {!isReadOnly && isEditing && (
@@ -339,7 +350,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#00BA9D]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                       </svg>
-                      <span className="font-medium">Upload Image</span>
+                      <span className="font-medium">{t('Upload Image')}</span>
                     </button>
                     <button 
                       onClick={handleDeleteAvatar}
@@ -348,7 +359,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
-                      <span className="font-medium">Delete Image</span>
+                      <span className="font-medium">{t('Delete Image')}</span>
                     </button>
                   </div>
                 )}
@@ -385,18 +396,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
           </div>
 
           <div className="bg-[#1e293b]/20 border border-gray-800 rounded-3xl p-8">
-            <h4 className={labelStyles}>{isReadOnly ? 'Investor Stats' : 'Account Stats'}</h4>
+            <h4 className={labelStyles}>{isReadOnly ? t('Investor Stats') : t('Account Stats')}</h4>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-400 text-sm">Member Since</span>
                 <span className="text-white text-sm font-medium">Feb 2024</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 text-sm">{isReadOnly ? 'Investments' : 'Ideas Validated'}</span>
-                <span className="text-white text-sm font-medium">
-                  {isReadOnly ? `${profile.portfolio_count || 0} companies` : voteCount}
-                </span>
-              </div>
+              {!isReadOnly && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-sm">Ideas Validated</span>
+                  <span className="text-white text-sm font-medium">{voteCount}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-gray-400 text-sm">{isReadOnly ? 'Investor Type' : 'Community Rank'}</span>
                 <span className="text-[#00BA9D] text-sm font-bold">
@@ -410,6 +421,28 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                 </div>
               )}
             </div>
+            
+            {/* Vote Breakdown */}
+            <div className="mt-6 pt-6 border-t border-gray-800">
+              <h4 className={labelStyles}>Voting History</h4>
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                <div className="bg-[#1e293b]/40 rounded-xl p-3 flex flex-col items-center justify-center">
+                  <span className="text-xl mb-1">👍</span>
+                  <span className="text-white font-bold">{voteBreakdown.yes}</span>
+                  <span className="text-gray-500 text-[10px] uppercase font-bold mt-1">Yes</span>
+                </div>
+                <div className="bg-[#1e293b]/40 rounded-xl p-3 flex flex-col items-center justify-center">
+                  <span className="text-xl mb-1">🤷</span>
+                  <span className="text-white font-bold">{voteBreakdown.maybe}</span>
+                  <span className="text-gray-500 text-[10px] uppercase font-bold mt-1">Maybe</span>
+                </div>
+                <div className="bg-[#1e293b]/40 rounded-xl p-3 flex flex-col items-center justify-center">
+                  <span className="text-xl mb-1">👎</span>
+                  <span className="text-white font-bold">{voteBreakdown.no}</span>
+                  <span className="text-gray-500 text-[10px] uppercase font-bold mt-1">No</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -422,20 +455,20 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center justify-between w-full">
                   <div className="flex items-center">
                     <span className="w-2 h-2 bg-[#00BA9D] rounded-full mr-3" />
-                    {isReadOnly ? 'About' : 'Personal Information'}
+                    {isReadOnly ? t('About') : t('Personal Information')}
                   </div>
                   {isReadOnly && (
                     <button 
                       onClick={() => setShowContactModal(true)}
                       className="bg-[#00BA9D] hover:bg-[#00a88d] text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-teal-500/20 transition-all transform active:scale-95"
                     >
-                      Contact
+                      {t('Contact')}
                     </button>
                   )}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
-                    <label className={labelStyles}>{profile.profile_type === 'personal' ? 'Full Name' : 'Company Name'}</label>
+                    <label className={labelStyles}>{profile.profile_type === 'personal' ? t('Full Name') : t('Company Name')}</label>
                     <input 
                       type="text" 
                       className={inputStyles}
@@ -450,9 +483,20 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                       disabled={!isEditing || isReadOnly}
                     />
                   </div>
+                  {isReadOnly && profile.profile_type === 'personal' && tempProfile.company_name && (
+                    <div>
+                      <label className={labelStyles}>{t('Company Name')}</label>
+                      <input 
+                        type="text" 
+                        className={inputStyles}
+                        value={tempProfile.company_name}
+                        disabled={true}
+                      />
+                    </div>
+                  )}
                   {!isReadOnly && (
                     <div>
-                      <label className={labelStyles}>Email Address</label>
+                      <label className={labelStyles}>{t('Email Address')}</label>
                       <input 
                         type="email" 
                         className={inputStyles}
@@ -463,7 +507,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                     </div>
                   )}
                   <div>
-                    <label className={labelStyles}>{isReadOnly ? 'Type' : 'Current Role'}</label>
+                    <label className={labelStyles}>{t('Current Role')}</label>
                     <input 
                       type="text" 
                       className={inputStyles}
@@ -472,6 +516,40 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                       disabled={!isEditing || isReadOnly}
                     />
                   </div>
+                  {isReadOnly && (
+                    <div>
+                      <label className={labelStyles}>{t('Type of Investor')}</label>
+                      <input 
+                        type="text" 
+                        className={inputStyles}
+                        value={tempProfile.investor_type || 'Angel'}
+                        disabled={true}
+                      />
+                    </div>
+                  )}
+                  {isReadOnly && tempProfile.sectors && tempProfile.sectors.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <label className={labelStyles}>{t('Sectors')}</label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {tempProfile.sectors.map((sector) => (
+                          <span key={sector} className="bg-gray-800/50 text-gray-400 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-gray-700">
+                            {sector.replace('_', ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {isReadOnly && tempProfile.investment_range && (
+                    <div>
+                      <label className={labelStyles}>{t('Max Investment Amount')}</label>
+                      <input 
+                        type="text" 
+                        className={inputStyles}
+                        value={tempProfile.investment_range && tempProfile.investment_range.includes('-') ? tempProfile.investment_range.split('-')[1].trim() : tempProfile.investment_range}
+                        disabled={true}
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className={labelStyles}>Location</label>
                     <input 
@@ -605,7 +683,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
 
               {/* Bio Section */}
               <section>
-                <label className={labelStyles}>{isReadOnly ? 'Professional Background' : 'Professional Bio'}</label>
+                    <label className={labelStyles}>{t('Bio')} / About</label>
                 <textarea 
                   rows={4}
                   className={inputStyles}
@@ -637,16 +715,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                         <option value="Syndicate">Syndicate</option>
                         <option value="Accelerator">Accelerator</option>
                       </select>
-                    </div>
-                    <div>
-                      <label className={labelStyles}>Portfolio Count</label>
-                      <input 
-                        type="number" 
-                        className={inputStyles}
-                        value={tempProfile.portfolio_count}
-                        onChange={(e) => setTempProfile({...tempProfile, portfolio_count: parseInt(e.target.value) || 0})}
-                        disabled={!isEditing || isReadOnly}
-                      />
                     </div>
                     <div>
                       <label className={labelStyles}>Investment Range</label>
@@ -706,7 +774,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, initialUser, onUpdate
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
-                    <label className={labelStyles}>Website</label>
+                    <label className={labelStyles}>{t('Website')}</label>
                     <input 
                       type="text" 
                       className={inputStyles}

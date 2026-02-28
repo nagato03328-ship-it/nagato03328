@@ -1,15 +1,27 @@
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface SettingsPageProps {
   onDeleteAccount: () => void;
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ onDeleteAccount }) => {
-  const [language, setLanguage] = useState('English');
+  const { t, i18n } = useTranslation();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const languages = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Japanese'];
+  const languages = [
+    { name: 'English', code: 'en' },
+    { name: 'Spanish', code: 'es' },
+    { name: 'French', code: 'fr' },
+    { name: 'German', code: 'de' },
+    { name: 'Chinese', code: 'zh' },
+    { name: 'Japanese', code: 'ja' }
+  ];
+
+  const handleLanguageChange = (code: string) => {
+    i18n.changeLanguage(code);
+  };
 
   const labelStyles = "block text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2";
   const selectStyles = "w-full bg-[#1e293b]/50 border border-gray-700 text-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-[#00BA9D] focus:border-transparent transition-all outline-none appearance-none cursor-pointer";
@@ -17,7 +29,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onDeleteAccount }) => {
   return (
     <div className="container mx-auto px-6 py-12 animate-fade-in max-w-3xl">
       <div className="mb-12">
-        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Settings</h1>
+        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">{t('Settings')}</h1>
         <p className="text-gray-400">Manage your account preferences and security settings.</p>
       </div>
 
@@ -31,21 +43,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onDeleteAccount }) => {
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white">Language & Region</h3>
-              <p className="text-gray-500 text-sm">Select your preferred language for the interface.</p>
+              <h3 className="text-xl font-bold text-white">{t('Language & Region')}</h3>
+              <p className="text-gray-500 text-sm">{t('Select your preferred language for the interface.')}</p>
             </div>
           </div>
 
           <div className="max-w-xs relative">
-            <label className={labelStyles}>Interface Language</label>
+            <label className={labelStyles}>{t('INTERFACE LANGUAGE')}</label>
             <div className="relative">
               <select 
                 className={selectStyles}
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+                value={i18n.language.split('-')[0]}
+                onChange={(e) => handleLanguageChange(e.target.value)}
               >
                 {languages.map(lang => (
-                  <option key={lang} value={lang}>{lang}</option>
+                  <option key={lang.code} value={lang.code}>{t(lang.name)}</option>
                 ))}
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">

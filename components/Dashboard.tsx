@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import BrowseIdeas from './BrowseIdeas';
 import NewIdeaModal from './NewIdeaModal';
@@ -9,6 +10,7 @@ import InvestorsList from './InvestorsList';
 import ProfilePage from './ProfilePage';
 import SettingsPage from './SettingsPage';
 import StatisticsModal from './StatisticsModal';
+import Chatbot from './Chatbot';
 
 interface DashboardProps {
   userId: string;
@@ -58,8 +60,41 @@ const USER_MOCK_IDEAS = [
 ];
 
 const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName, isDark, toggleTheme, onLogout }) => {
+  const { t } = useTranslation();
   const [userName, setUserName] = useState(initialUserName);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('Dashboard');
+
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!userId || userId === 'guest' || userId === 'admin') return;
+      if (!isSupabaseConfigured()) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('full_name, company_name, profile_type, avatar_url')
+          .eq('user_id', userId)
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          const displayName = data.profile_type === 'company' ? data.company_name : data.full_name;
+          if (displayName) {
+            setUserName(displayName);
+          }
+          if (data.avatar_url) {
+            setUserAvatar(data.avatar_url);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching profile data for dashboard:', err);
+      }
+    };
+
+    fetchProfileData();
+  }, [userId]);
+
   const [isNewIdeaModalOpen, setIsNewIdeaModalOpen] = useState(false);
   const [editingIdea, setEditingIdea] = useState<any>(null);
   const [viewingIdea, setViewingIdea] = useState<any>(null);
@@ -126,7 +161,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
         const ideaIds = (data || []).map(idea => idea.id);
         
         let voteCounts: Record<number, number> = {};
-        ideaIds.forEach(id => voteCounts[id] = 0);
+        let yesCounts: Record<number, number> = {};
+        let noCounts: Record<number, number> = {};
+        ideaIds.forEach(id => {
+          voteCounts[id] = 0;
+          yesCounts[id] = 0;
+          noCounts[id] = 0;
+        });
         
         if (ideaIds.length > 0) {
           const { data: votesData } = await supabase
@@ -139,18 +180,27 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
               if (vote.yes_vote || vote.maybe_vote || vote.no_vote) {
                 voteCounts[vote.idea_id] = (voteCounts[vote.idea_id] || 0) + 1;
               }
+              if (vote.yes_vote) yesCounts[vote.idea_id] = (yesCounts[vote.idea_id] || 0) + 1;
+              if (vote.no_vote) noCounts[vote.idea_id] = (noCounts[vote.idea_id] || 0) + 1;
             });
           }
         }
 
         // Map DB fields to UI fields if necessary
-        const mappedIdeas = (data || []).map(idea => ({
-          ...idea,
-          votes: voteCounts[idea.id] !== undefined ? voteCounts[idea.id] : (idea.votes || 0),
-          waitlist: idea.waitlist || 0,
-          score: idea.score || 0,
-          comments: idea.comments || 0
-        }));
+        const mappedIdeas = (data || []).map(idea => {
+          const yes = yesCounts[idea.id] || 0;
+          const no = noCounts[idea.id] || 0;
+          const netVotes = yes - no;
+          const calculatedScore = Math.round(Math.sign(netVotes) * Math.min(100, Math.sqrt(Math.abs(netVotes)) * 10));
+
+          return {
+            ...idea,
+            votes: voteCounts[idea.id] !== undefined ? voteCounts[idea.id] : (idea.votes || 0),
+            waitlist: idea.waitlist || 0,
+            score: calculatedScore,
+            comments: idea.comments || 0
+          };
+        });
 
         setUserIdeas(mappedIdeas);
 
@@ -295,6 +345,56 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
     setViewingIdea(null);
   };
 
+  const handleDeleteAccount = async () => {
+    if (!userId || userId === 'guest' || userId === 'admin') {
+      onLogout();
+      return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      onLogout();
+      return;
+    }
+
+    try {
+      // Use getUser() instead of getSession() to ensure the session is fresh and valid
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('No active user found:', userError);
+        onLogout();
+        return;
+      }
+
+      // Now get the session to get the access token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        onLogout();
+        return;
+      }
+
+      const response = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete account');
+      }
+
+      // Sign out locally
+      await supabase.auth.signOut();
+      onLogout();
+    } catch (err: any) {
+      console.error('Error deleting account:', err);
+      alert('Failed to delete account: ' + err.message);
+    }
+  };
+
   return (
     <div className="flex-grow flex flex-col">
       {/* Dashboard Navbar */}
@@ -316,7 +416,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                     activeTab === link ? 'text-white' : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  {link}
+                  {t(link)}
                 </button>
               ))}
             </div>
@@ -335,9 +435,17 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
             </button>
             <div className="relative group">
               <div className="flex items-center space-x-2 cursor-pointer group">
-                <div className="w-8 h-8 rounded-full bg-[#00BA9D]/20 border border-[#00BA9D]/40 flex items-center justify-center text-[#00BA9D] text-xs font-bold">
-                    {userName[0].toUpperCase()}
-                </div>
+                {userAvatar ? (
+                  <img 
+                    src={userAvatar} 
+                    alt={userName} 
+                    className="w-8 h-8 rounded-full object-cover border border-[#00BA9D]/40"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-[#00BA9D]/20 border border-[#00BA9D]/40 flex items-center justify-center text-[#00BA9D] text-xs font-bold">
+                      {userName[0].toUpperCase()}
+                  </div>
+                )}
                 <span className="text-gray-300 text-sm font-medium group-hover:text-white transition-colors">{userName}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -352,7 +460,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#00BA9D]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    <span className="font-medium">Profile</span>
+                    <span className="font-medium">{t('Profile')}</span>
                   </button>
                   <button 
                     onClick={() => setActiveTab('Settings')}
@@ -362,7 +470,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    <span className="font-medium">Settings</span>
+                    <span className="font-medium">{t('Settings')}</span>
                   </button>
                   <div className="h-px bg-gray-800 my-1 mx-2" />
                   <button 
@@ -372,7 +480,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
-                    <span className="font-medium">Logout</span>
+                    <span className="font-medium">{t('Logout')}</span>
                   </button>
                 </div>
               </div>
@@ -387,15 +495,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
           <div className="container mx-auto px-6 py-12 animate-fade-in">
             <div className="flex justify-between items-end mb-10">
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">Welcome, {userName}!</h1>
-                    <p className="text-gray-500">Track your validation progress and community feedback.</p>
+                    <h1 className="text-3xl font-bold text-white mb-2">{t('Welcome')}, {userName}!</h1>
+                    <p className="text-gray-500">{t('Track your validation progress and community feedback.')}</p>
                 </div>
                 <button 
                     onClick={() => setIsNewIdeaModalOpen(true)}
                     className="flex items-center space-x-2 bg-[#00BA9D] hover:bg-[#00a88d] text-white px-6 py-3 rounded-full font-bold transition-all transform active:scale-95 shadow-lg shadow-teal-500/20"
                 >
                     <span className="text-xl">+</span>
-                    <span>New Idea</span>
+                    <span>{t('New Idea')}</span>
                 </button>
             </div>
 
@@ -409,7 +517,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                 </div>
                 <div>
                   <p className="text-3xl font-bold text-white mb-0.5">{userIdeas.length}</p>
-                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">My Ideas</p>
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{t('My Ideas')}</p>
                 </div>
               </div>
 
@@ -421,7 +529,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                 </div>
                 <div>
                   <p className="text-3xl font-bold text-white mb-0.5">{totalVotes}</p>
-                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Total Votes</p>
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{t('Total Votes')}</p>
                 </div>
               </div>
 
@@ -433,7 +541,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                 </div>
                 <div>
                   <p className="text-3xl font-bold text-white mb-0.5">{totalComments}</p>
-                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Feedback</p>
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{t('Feedback')}</p>
                 </div>
               </div>
             </div>
@@ -441,7 +549,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
             {/* Ideas List */}
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-white">Active Projects</h2>
+                    <h2 className="text-xl font-bold text-white">{t('Active Projects')}</h2>
                     <div className="flex items-center space-x-3">
                         {/* Sort Dropdown */}
                         <div className="relative">
@@ -455,7 +563,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                               </svg>
-                              <span>Sort: {activeSort}</span>
+                              <span>{t('Sort')}: {activeSort}</span>
                               <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                               </svg>
@@ -564,22 +672,18 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
 
                                 <div className="flex items-center space-x-12 min-w-fit">
                                     <div className="text-center">
-                                        <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Votes</p>
+                                        <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">{t('Votes')}</p>
                                         <p className="text-white font-bold">{idea.votes}</p>
                                     </div>
-                                    <div className="text-center">
-                                        <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Waitlist</p>
-                                        <p className="text-white font-bold">{idea.waitlist}</p>
-                                    </div>
                                     <div className="text-right w-24">
-                                        <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Validation</p>
+                                        <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">{t('Validation')}</p>
                                         <div className="flex items-center justify-end space-x-2">
-                                            <span className={`font-bold ${idea.score >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>{idea.score}%</span>
+                                            <span className={`font-bold ${idea.score < 0 ? 'text-red-500' : idea.score >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>{idea.score}%</span>
                                         </div>
                                         <div className="w-full h-1.5 bg-gray-800 rounded-full mt-1 overflow-hidden">
                                             <div 
-                                                className={`h-full rounded-full transition-all duration-1000 ${idea.score >= 80 ? 'bg-green-500' : 'bg-yellow-500'}`}
-                                                style={{ width: `${idea.score}%` }}
+                                                className={`h-full rounded-full transition-all duration-1000 ${idea.score < 0 ? 'bg-red-500' : idea.score >= 80 ? 'bg-green-500' : 'bg-yellow-500'}`}
+                                                style={{ width: `${Math.max(0, idea.score)}%` }}
                                             />
                                         </div>
                                     </div>
@@ -587,7 +691,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                                         <button 
                                           onClick={() => setViewingStats(idea)}
                                           className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2 rounded-lg transition-colors border border-gray-700"
-                                          title="View Statistics"
+                                          title={t('View Statistics')}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -596,7 +700,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                                         <button 
                                           onClick={() => setViewingIdea(idea)}
                                           className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2 rounded-lg transition-colors border border-gray-700"
-                                          title="View Details"
+                                          title={t('View Details')}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -606,7 +710,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
                                         <button 
                                           onClick={() => setEditingIdea(idea)}
                                           className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2 rounded-lg transition-colors border border-gray-700"
-                                          title="Edit Idea"
+                                          title={t('Edit Idea')}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -630,24 +734,28 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
         )}
 
         {activeTab === 'Investors' && (
-          <InvestorsList onViewProfile={(investor) => {
-            setSelectedInvestor(investor);
-            setActiveTab('InvestorProfile');
-          }} />
+          <InvestorsList 
+            onViewProfile={(investor) => {
+              setSelectedInvestor(investor);
+              setActiveTab('InvestorProfile');
+            }} 
+            onApply={() => setActiveTab('Profile')}
+          />
         )}
 
         {activeTab === 'InvestorProfile' && selectedInvestor && (
           <ProfilePage 
+            userId={selectedInvestor.id}
             initialUser={{ 
               name: selectedInvestor.name,
-              role: selectedInvestor.type,
+              role: selectedInvestor.current_role || selectedInvestor.type,
+              company: selectedInvestor.company_name,
               location: selectedInvestor.location,
               bio: selectedInvestor.bio,
-              avatar: selectedInvestor.avatar,
+              avatar: selectedInvestor.avatar_url || selectedInvestor.avatar,
               investor_type: selectedInvestor.type,
-              investment_range: `${selectedInvestor.minCheck} - ${selectedInvestor.maxCheck}`,
+              investment_range: selectedInvestor.maxCheck ? `${selectedInvestor.minCheck} - ${selectedInvestor.maxCheck}` : selectedInvestor.minCheck,
               sectors: selectedInvestor.focus,
-              portfolio_count: selectedInvestor.portfolio,
               profile_type: selectedInvestor.profile_type
             }} 
             isReadOnly={true}
@@ -667,13 +775,16 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
         {activeTab === 'Profile' && (
           <ProfilePage 
             userId={userId}
-            initialUser={{ name: userName }} 
-            onUpdate={(newName) => setUserName(newName)} 
+            initialUser={{ name: userName, avatar: userAvatar || undefined }} 
+            onUpdate={(newName, newAvatar) => {
+              setUserName(newName);
+              if (newAvatar) setUserAvatar(newAvatar);
+            }} 
           />
         )}
 
         {activeTab === 'Settings' && (
-          <SettingsPage onDeleteAccount={onLogout} />
+          <SettingsPage onDeleteAccount={handleDeleteAccount} />
         )}
       </main>
 
@@ -707,6 +818,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, userName: initialUserName
         idea={viewingStats} 
         onClose={() => setViewingStats(null)} 
       />
+
+      {/* AI Chatbot */}
+      <Chatbot />
     </div>
   );
 };
